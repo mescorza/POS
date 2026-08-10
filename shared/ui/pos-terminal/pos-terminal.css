@@ -1,0 +1,76 @@
+/*
+ * Tema visual compartido de las "ventanas verdes" del POS: fondo negro,
+ * texto verde, tipografía monoespaciada, sin cards ni sombras.
+ * Referencia: POS_Registro_Venta_Arquitectura_Hexagonal_USUARIOS_V1, Parte I y 34.3.
+ */
+
+:root {
+  --pos-bg: #000000;
+  --pos-fg: #33ff66;
+  --pos-fg-dim: #1f9a44;
+  --pos-fg-highlight: #baffce;
+  --pos-selection-bg: #114d22;
+  --pos-border: #33ff66;
+  --pos-font: "Consolas", "Courier New", monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--pos-bg);
+  font-family: var(--pos-font);
+}
+
+.pos-terminal-shell {
+  width: 100%;
+  min-height: 100vh;
+  background: var(--pos-bg);
+  color: var(--pos-fg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.pos-terminal-window {
+  width: 100%;
+  max-width: 860px;
+  border: 2px solid var(--pos-border);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.pos-operational-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--pos-fg-dim);
+  color: var(--pos-fg-dim);
+  font-size: 13px;
+}
+
+.pos-terminal-body {
+  padding: 16px 24px;
+  flex: 1;
+}
+
+.pos-function-key-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  border-top: 1px solid var(--pos-fg-dim);
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+.pos-function-key-bar .key {
+  color: var(--pos-fg-highlight);
+  font-weight: bold;
+  margin-right: 4px;
+}

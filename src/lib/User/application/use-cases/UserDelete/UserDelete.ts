@@ -1,0 +1,10 @@
+import { UserId } from "../../../domain/value-objects/UserId";
+import { UserRepository } from "../../../domain/repositories/UserRepository";
+
+export class UserDelete {
+  constructor(private repository: UserRepository) {}
+
+  async run(id: string): Promise<void> {
+    await this.repository.delete(new UserId(id));
+  }
+}

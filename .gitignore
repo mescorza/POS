@@ -1,0 +1,18 @@
+node_modules
+dist
+dist-ui
+.env
+
+# Configuración local de Claude Code, no es parte del proyecto.
+.claude/
+
+# Instalador, zips de referencia, PDFs sueltos y proyectos ajenos que
+# quedaron en esta carpeta pero no son parte del POS.
+node-v24.13.1-x64.msi
+*.zip
+*.pdf
+ediciones/
+employee-api-consumer-ddd-hexagonal/
+relational_entities/
+prueba.ts
+tsconfig_original.json
