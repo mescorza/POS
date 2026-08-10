@@ -1,5 +1,7 @@
 # POS / ERP — Adriazola Repuestos
 
+[![CI](https://github.com/mescorza/POS/actions/workflows/ci.yml/badge.svg)](https://github.com/mescorza/POS/actions/workflows/ci.yml)
+
 Sistema POS/ERP para Adriazola Repuestos, construido con arquitectura
 hexagonal (dominio/aplicación/infraestructura, puertos y adaptadores).
 Backend en Node.js + TypeScript + Express + PostgreSQL; frontend en

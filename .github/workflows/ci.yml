@@ -1,0 +1,51 @@
+name: CI
+
+# "Build" en el sentido de: compila (type-check + build de frontend) y el
+# backend efectivamente arranca y responde. No corre la suite de Jest acá
+# porque los tests de integración (PostgresUserRepository, etc.) requieren
+# una base Postgres real con el esquema de producción -- fuera del alcance
+# de este workflow. Sin DATABASE_URL, ServiceContainer/ServiceEmployeContainer/
+# ServiceAuthContainer caen solos a repositorios en memoria (con warning),
+# así que el smoke test no necesita infraestructura de base de datos.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm ci
+
+      - name: Type-check frontend
+        run: npx tsc --noEmit -p tsconfig.app.json
+
+      - name: Build frontend (Vite)
+        run: npm run ui:build
+
+      - name: Backend arranca y responde (sin DATABASE_URL -> repos en memoria)
+        run: |
+          DATABASE_URL="" npx ts-node ./src/main.ts &
+          SERVER_PID=$!
+          ok=""
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:3000/users > /dev/null; then
+              ok="1"
+              break
+            fi
+            sleep 1
+          done
+          kill "$SERVER_PID" 2>/dev/null || true
+          if [ -z "$ok" ]; then
+            echo "El backend no respondió a tiempo."
+            exit 1
+          fi
+          echo "Backend OK."
