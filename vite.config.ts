@@ -31,6 +31,7 @@ export default defineConfig({
       "/departments": "http://localhost:3000",
       "/subsidiaries": "http://localhost:3000",
       "/auth": "http://localhost:3000",
+      "/informes": "http://localhost:3000",
     },
   },
 });

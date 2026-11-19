@@ -14,45 +14,100 @@ import { usePosFocus } from "../pos-terminal/usePosFocus";
  * ni casos de uso reales todavía. Sólo selecciona una capacidad y muestra su
  * destino; no contiene lógica de negocio de ningún módulo (regla 1A.2).
  */
-interface MainMenuOption {
+export interface MainMenuOption {
   code: string;
+  /** Identificador estable de la acción; no cambia al renumerar. */
+  action: string;
   label: string;
   boundedContext: string;
   entryUseCase: string;
+  /** Si existe, la opción abre un submenú con estas opciones. */
+  children?: MainMenuOption[];
 }
 
 const MAIN_MENU_OPTIONS: MainMenuOption[] = [
   {
+    code: "00",
+    action: "admin",
+    label: "Administración del Sistema",
+    boundedContext: "Administración",
+    entryUseCase: "Submenú: usuarios y empleados",
+    children: [
+      {
+        code: "01",
+        action: "users",
+        label: "Consulta y mantención de usuarios",
+        boundedContext: "User",
+        entryUseCase:
+          "UserGetAll / UserGetOneById / UserCreate / UserEdit / UserDelete",
+      },
+      {
+        code: "02",
+        action: "employees",
+        label: "Consulta y mantención de empleados",
+        boundedContext: "Employe",
+        entryUseCase:
+          "EmployeGetAll / EmployeGetOneById / EmployeCreate / EmployeEdit / EmployeDelete",
+      },
+    ],
+  },
+  {
     code: "01",
+    action: "masters",
+    label: "Maestros Centrales",
+    boundedContext: "Catálogo / Maestros",
+    entryUseCase: "Submenú: proveedores, items/productos y clientes",
+    children: [
+      {
+        code: "01",
+        action: "suppliers",
+        label: "Mantenedor de Proveedores",
+        boundedContext: "Supplier",
+        entryUseCase: "Pendiente",
+      },
+      {
+        code: "02",
+        action: "items",
+        label: "Mantenedor de Items/Productos",
+        boundedContext: "Item / Producto",
+        entryUseCase: "Pendiente",
+      },
+      {
+        code: "03",
+        action: "customers",
+        label: "Mantenedor de Clientes",
+        boundedContext: "Customer",
+        entryUseCase: "Pendiente",
+      },
+    ],
+  },
+  {
+    code: "02",
+    action: "sales",
     label: "Registro de Venta",
     boundedContext: "Sales / SalesHeader",
     entryUseCase: "OpenSalesHeaderForm",
   },
   {
-    code: "02",
-    label: "Consulta y mantención de usuarios",
-    boundedContext: "User",
-    entryUseCase:
-      "UserGetAll / UserGetOneById / UserCreate / UserEdit / UserDelete",
-  },
-  {
     code: "03",
-    label: "Consulta y mantención de empleados",
-    boundedContext: "Employe",
-    entryUseCase:
-      "EmployeGetAll / EmployeGetOneById / EmployeCreate / EmployeEdit / EmployeDelete",
-  },
-  {
-    code: "04",
+    action: "sync",
     label: "Estado de sincronización",
     boundedContext: "Shared / Integration",
     entryUseCase: "GetIntegrationStatus",
   },
   {
-    code: "05",
+    code: "04",
+    action: "signout",
     label: "Cierre de sesión",
     boundedContext: "auth / application shell",
     entryUseCase: "SignOut / CloseOperationalSession",
+  },
+  {
+    code: "05",
+    action: "informes",
+    label: "Informes",
+    boundedContext: "Shared / Informes",
+    entryUseCase: "InformesMenu / Estructura de tablas",
   },
 ];
 
@@ -74,17 +129,26 @@ export function MainMenuPage({ onOptionConfirmed, user }: MainMenuPageProps) {
     null
   );
 
-  const selectedOption = MAIN_MENU_OPTIONS[selectedIndex];
+  const [submenu, setSubmenu] = React.useState<MainMenuOption | null>(null);
+  const options = submenu?.children ?? MAIN_MENU_OPTIONS;
+  const selectedOption = options[selectedIndex];
   const bodyRef = usePosFocus<HTMLDivElement>("menu");
 
   const selectByCode = (code: string) => {
-    const index = MAIN_MENU_OPTIONS.findIndex((o) => o.code === code);
+    const index = options.findIndex((o) => o.code === code);
     if (index !== -1) {
       setSelectedIndex(index);
     }
   };
 
   const confirmSelection = () => {
+    if (selectedOption.children) {
+      setSubmenu(selectedOption);
+      setSelectedIndex(0);
+      setTypedCode("");
+      setStatusMessage(null);
+      return;
+    }
     setStatusMessage(
       `Abriendo opción ${selectedOption.code} - ${selectedOption.label}  (destino aún no implementado)`
     );
@@ -95,7 +159,7 @@ export function MainMenuPage({ onOptionConfirmed, user }: MainMenuPageProps) {
     if (event.key === "ArrowDown") {
       event.preventDefault();
       setTypedCode("");
-      setSelectedIndex((i) => (i + 1) % MAIN_MENU_OPTIONS.length);
+      setSelectedIndex((i) => (i + 1) % options.length);
       return;
     }
 
@@ -103,7 +167,7 @@ export function MainMenuPage({ onOptionConfirmed, user }: MainMenuPageProps) {
       event.preventDefault();
       setTypedCode("");
       setSelectedIndex(
-        (i) => (i - 1 + MAIN_MENU_OPTIONS.length) % MAIN_MENU_OPTIONS.length
+        (i) => (i - 1 + options.length) % options.length
       );
       return;
     }
@@ -118,6 +182,10 @@ export function MainMenuPage({ onOptionConfirmed, user }: MainMenuPageProps) {
       event.preventDefault();
       setTypedCode("");
       setStatusMessage(null);
+      if (submenu) {
+        setSelectedIndex(MAIN_MENU_OPTIONS.indexOf(submenu));
+        setSubmenu(null);
+      }
       return;
     }
 
@@ -141,11 +209,15 @@ export function MainMenuPage({ onOptionConfirmed, user }: MainMenuPageProps) {
         onKeyDown={handleKeyDown}
         ref={bodyRef}
       >
-        <p style={{ margin: "0 0 16px" }}>POS - FORMULARIO INICIAL DE OPCIONES</p>
+        <p style={{ margin: "0 0 16px" }}>
+          {submenu
+            ? `POS - ${submenu.code} ${submenu.label.toUpperCase()}`
+            : "POS - FORMULARIO INICIAL DE OPCIONES"}
+        </p>
 
         <table style={{ borderCollapse: "collapse", width: "100%" }}>
           <tbody>
-            {MAIN_MENU_OPTIONS.map((option, index) => {
+            {options.map((option, index) => {
               const isSelected = index === selectedIndex;
               return (
                 <tr key={option.code}>
@@ -188,7 +260,7 @@ export function MainMenuPage({ onOptionConfirmed, user }: MainMenuPageProps) {
           { key: "↑↓", label: "Mover selección" },
           { key: "0-9", label: "Ir a opción" },
           { key: "Enter", label: "Seleccionar" },
-          { key: "Esc", label: "Cancelar" },
+          { key: "Esc", label: submenu ? "Volver" : "Cancelar" },
         ]}
       />
     </PosTerminalShell>

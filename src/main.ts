@@ -3,6 +3,7 @@ import { Request, Response, NextFunction } from "express";
 import { ExpressUserRouter } from "./lib/User/infrastructure/ExpressUserRouter";
 import { ExpressEmployeRouter } from "./lib/Employe/infrastructure/ExpressEmployeRouter";
 import { ExpressLookupRouter } from "./lib/Shared/infrastructure/ExpressLookupRouter";
+import { ExpressInformesRouter } from "./lib/Shared/infrastructure/ExpressInformesRouter";
 import { ExpressAuthRouter } from "./lib/auth/infrastructure/ExpressAuthRouter";
 
 const app = express();
@@ -12,6 +13,7 @@ app.use(express.json());
 app.use(ExpressUserRouter);
 app.use(ExpressEmployeRouter);
 app.use(ExpressLookupRouter);
+app.use(ExpressInformesRouter);
 app.use(ExpressAuthRouter);
 
 app.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
