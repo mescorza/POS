@@ -62,8 +62,8 @@ const MAIN_MENU_OPTIONS: MainMenuOption[] = [
         code: "01",
         action: "suppliers",
         label: "Mantenedor de Proveedores",
-        boundedContext: "Supplier",
-        entryUseCase: "Pendiente",
+        boundedContext: "Proveedor",
+        entryUseCase: "ProveedorSearch / ProveedorGetOneById (solo consulta)",
       },
       {
         code: "02",

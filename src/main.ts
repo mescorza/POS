@@ -5,6 +5,8 @@ import { ExpressEmployeRouter } from "./lib/Employe/infrastructure/ExpressEmploy
 import { ExpressLookupRouter } from "./lib/Shared/infrastructure/ExpressLookupRouter";
 import { ExpressInformesRouter } from "./lib/Shared/infrastructure/ExpressInformesRouter";
 import { ExpressAuthRouter } from "./lib/auth/infrastructure/ExpressAuthRouter";
+import { ExpressProveedorRouter } from "./lib/Proveedor/infrastructure/ExpressProveedorRouter";
+import { ExpressMaestroRouter } from "./lib/Shared/infrastructure/ExpressMaestroRouter";
 
 const app = express();
 
@@ -15,6 +17,8 @@ app.use(ExpressEmployeRouter);
 app.use(ExpressLookupRouter);
 app.use(ExpressInformesRouter);
 app.use(ExpressAuthRouter);
+app.use(ExpressProveedorRouter);
+app.use(ExpressMaestroRouter);
 
 app.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
   if (err instanceof Error) {

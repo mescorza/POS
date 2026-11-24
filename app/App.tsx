@@ -6,7 +6,9 @@ import { LoginPage } from "../modules/auth/ui/react/LoginPage";
 import { AuthSession } from "../modules/auth/infrastructure/AuthHttpGateway";
 import { InformesPage } from "../modules/informes/ui/react/InformesPage";
 
-type Screen = "menu" | "users" | "employees" | "informes";
+import { ProveedorMaintenancePage } from "../modules/proveedor/ui/react/ProveedorMaintenancePage";
+
+type Screen = "menu" | "users" | "employees" | "informes" | "suppliers";
 
 // Composition root del shell POS. El formulario inicial sólo entrega la
 // opción confirmada (regla 1A.2); este componente decide qué pantalla
@@ -39,6 +41,10 @@ export function App() {
     return <InformesPage onBack={() => setScreen("menu")} />;
   }
 
+  if (screen === "suppliers") {
+    return <ProveedorMaintenancePage onBack={() => setScreen("menu")} userId={session.id} />;
+  }
+
   return (
     <MainMenuPage
       user={session.username}
@@ -47,6 +53,8 @@ export function App() {
           setScreen("users");
         } else if (option.action === "employees") {
           setScreen("employees");
+        } else if (option.action === "suppliers") {
+          setScreen("suppliers");
         } else if (option.action === "signout") {
           setSession(null);
         } else if (option.action === "informes") {

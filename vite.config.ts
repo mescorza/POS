@@ -32,6 +32,8 @@ export default defineConfig({
       "/subsidiaries": "http://localhost:3000",
       "/auth": "http://localhost:3000",
       "/informes": "http://localhost:3000",
+      "/proveedores": "http://localhost:3000",
+      "/maestros": "http://localhost:3000",
     },
   },
 });
