@@ -1,3 +1,5 @@
+import { httpJson } from "../../../shared/infrastructure/httpRequest";
+
 /**
  * Adaptador de entrada del módulo Proveedor hacia la API Express
  * (ExpressProveedorRouter). Etapa 1: sólo consulta.
@@ -96,59 +98,33 @@ export interface ProveedorCreateInput extends ProveedorEditInput {
   abrev: string;
 }
 
+/**
+ * Todas las llamadas pasan por httpJson: un fallo llega a la pantalla con un
+ * mensaje que explica la causa (backend desactualizado, sin conexión, regla
+ * de negocio del servidor, ...), no sólo un código HTTP.
+ */
 export class ProveedorHttpGateway {
   /** Baja lógica (inactivo = true) o reactivación (false). Devuelve el proveedor actualizado. */
-  async setInactivo(id: number, inactivo: boolean, modificadoPor: number): Promise<ProveedorDetalle> {
-    const response = await fetch(`/proveedores/${id}/estado`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ inactivo, modificadoPor }),
-    });
-    if (!response.ok) {
-      const body = await response.json().catch(() => null);
-      throw new Error(body?.message ?? `No se pudo cambiar el estado del proveedor (${response.status})`);
-    }
-    return response.json();
+  setInactivo(id: number, inactivo: boolean, modificadoPor: number): Promise<ProveedorDetalle> {
+    return httpJson("PUT", `/proveedores/${id}/estado`, { inactivo, modificadoPor });
   }
 
   /** Devuelve el proveedor ya creado, releído desde la base. */
-  async create(input: ProveedorCreateInput): Promise<ProveedorDetalle> {
-    const response = await fetch("/proveedores", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(input),
-    });
-    if (!response.ok) {
-      const body = await response.json().catch(() => null);
-      throw new Error(body?.message ?? `No se pudo crear el proveedor (${response.status})`);
-    }
-    return response.json();
+  create(input: ProveedorCreateInput): Promise<ProveedorDetalle> {
+    return httpJson("POST", "/proveedores", input);
   }
 
   /** Devuelve el proveedor ya guardado, releído desde la base. */
-  async update(id: number, input: ProveedorEditInput): Promise<ProveedorDetalle> {
-    const response = await fetch(`/proveedores/${id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(input),
-    });
-    if (!response.ok) {
-      const body = await response.json().catch(() => null);
-      throw new Error(body?.message ?? `No se pudo guardar el proveedor (${response.status})`);
-    }
-    return response.json();
+  update(id: number, input: ProveedorEditInput): Promise<ProveedorDetalle> {
+    return httpJson("PUT", `/proveedores/${id}`, input);
   }
 
-  async search(q: string, page: number, size: number): Promise<ProveedorSearchResult> {
+  search(q: string, page: number, size: number): Promise<ProveedorSearchResult> {
     const params = new URLSearchParams({ q, page: String(page), size: String(size) });
-    const response = await fetch(`/proveedores?${params.toString()}`);
-    if (!response.ok) throw new Error(`No se pudo consultar proveedores (${response.status})`);
-    return response.json();
+    return httpJson("GET", `/proveedores?${params.toString()}`);
   }
 
-  async getById(id: number): Promise<ProveedorDetalle> {
-    const response = await fetch(`/proveedores/${id}`);
-    if (!response.ok) throw new Error(`No se pudo obtener el proveedor ${id} (${response.status})`);
-    return response.json();
+  getById(id: number): Promise<ProveedorDetalle> {
+    return httpJson("GET", `/proveedores/${id}`);
   }
 }

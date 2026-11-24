@@ -1,3 +1,5 @@
+import { httpJson } from "./httpRequest";
+
 /**
  * Gateway compartido de sólo lectura para los maestros que alimentan los
  * pop-ups de lookup (GET /maestros/:tipo). Los maestros se buscan y se
@@ -26,7 +28,7 @@ export interface MaestroSearchResult {
 }
 
 export class MaestroHttpGateway {
-  async search(
+  search(
     tipo: MaestroTipo,
     q: string,
     parentId: string | null,
@@ -35,8 +37,6 @@ export class MaestroHttpGateway {
   ): Promise<MaestroSearchResult> {
     const params = new URLSearchParams({ q, page: String(page), size: String(size) });
     if (parentId) params.set("parent", parentId);
-    const response = await fetch(`/maestros/${tipo}?${params.toString()}`);
-    if (!response.ok) throw new Error(`No se pudo consultar ${tipo} (${response.status})`);
-    return response.json();
+    return httpJson("GET", `/maestros/${tipo}?${params.toString()}`);
   }
 }

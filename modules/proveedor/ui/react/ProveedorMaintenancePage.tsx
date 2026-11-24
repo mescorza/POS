@@ -3,6 +3,7 @@ import { PosTerminalShell } from "../../../../shared/ui/pos-terminal/PosTerminal
 import { PosFunctionKeyBar } from "../../../../shared/ui/pos-terminal/PosFunctionKeyBar";
 import { PosField } from "../../../../shared/ui/pos-terminal/PosField";
 import { usePosFocus } from "../../../../shared/ui/pos-terminal/usePosFocus";
+import { PosErrorPopup } from "../../../../shared/ui/pos-terminal/PosErrorPopup";
 import { PosLookupPopup, LookupRow } from "../../../../shared/ui/pos-terminal/PosLookupPopup";
 import { MaestroHttpGateway, MaestroTipo } from "../../../../shared/infrastructure/MaestroHttpGateway";
 import {
@@ -337,7 +338,9 @@ export function ProveedorMaintenancePage({ onBack, userId }: ProveedorMaintenanc
   const [formMode, setFormMode] = React.useState<FormMode>("view");
   const [formPage, setFormPage] = React.useState<1 | 2>(1);
   const [saving, setSaving] = React.useState(false);
-  const [formError, setFormError] = React.useState<string | null>(null);
+  // Error de una acción (guardar, crear, cambiar estado): se muestra como
+  // ventana modal centrada y destacada (PosErrorPopup), no como una línea suelta.
+  const [formError, setFormError] = React.useState<{ title: string; message: string } | null>(null);
   const [note, setNote] = React.useState<string | null>(null);
   const [confirmingDiscard, setConfirmingDiscard] = React.useState(false);
   // F6: proveedor a desactivar/reactivar, pendiente de confirmación.
@@ -484,9 +487,16 @@ export function ProveedorMaintenancePage({ onBack, userId }: ProveedorMaintenanc
         setDraft(saved);
       }
     } catch (e) {
-      setFormError(e instanceof Error ? e.message : String(e));
+      setFormError({
+        title: t.inactivo ? "No se pudo reactivar el proveedor" : "No se pudo desactivar el proveedor",
+        message: e instanceof Error ? e.message : String(e),
+      });
     }
   };
+
+  const errorPopup = formError ? (
+    <PosErrorPopup title={formError.title} message={formError.message} onClose={() => setFormError(null)} />
+  ) : null;
 
   const toggleQuestion = toggleTarget
     ? `¿Desea ${toggleTarget.inactivo ? "Reactivar" : "Desactivar"} Proveedor "${toggleTarget.nombre}"? Enter = Sí, Esc = No`
@@ -508,8 +518,8 @@ export function ProveedorMaintenancePage({ onBack, userId }: ProveedorMaintenanc
     if (formMode === "view" || !draft || saving) return;
     setSaving(true);
     setFormError(null);
+    const creating = formMode === "create";
     try {
-      const creating = formMode === "create";
       const saved = creating
         ? await gateway.create({ ...toEditInput(draft, userId), abrev: draft.abrev })
         : await gateway.update(draft.id, toEditInput(draft, userId));
@@ -526,7 +536,10 @@ export function ProveedorMaintenancePage({ onBack, userId }: ProveedorMaintenanc
       }
       setReloadKey((k) => k + 1);
     } catch (e) {
-      setFormError(e instanceof Error ? e.message : String(e));
+      setFormError({
+        title: creating ? "No se pudo crear el proveedor" : "No se pudo guardar el proveedor",
+        message: e instanceof Error ? e.message : String(e),
+      });
     } finally {
       setSaving(false);
     }
@@ -787,7 +800,6 @@ export function ProveedorMaintenancePage({ onBack, userId }: ProveedorMaintenanc
             {toggleQuestion && (
               <p style={{ color: "var(--pos-fg-highlight)", margin: "0 0 6px" }}>{toggleQuestion}</p>
             )}
-            {formError && <p style={{ color: "var(--pos-fg-highlight)", margin: "0 0 6px" }}>{formError}</p>}
             {saving && <p style={{ margin: "0 0 6px" }}>Guardando...</p>}
             {note && <p style={{ color: "#e0c341", margin: "0 0 6px" }}>{note}</p>}
 
@@ -954,6 +966,7 @@ export function ProveedorMaintenancePage({ onBack, userId }: ProveedorMaintenanc
             onClose={() => closeLookup(false)}
           />
         )}
+        {errorPopup}
       </PosTerminalShell>
     );
   }
@@ -971,7 +984,6 @@ export function ProveedorMaintenancePage({ onBack, userId }: ProveedorMaintenanc
         )}
 
         {toggleQuestion && <p style={{ color: "var(--pos-fg-highlight)" }}>{toggleQuestion}</p>}
-        {formError && <p style={{ color: "var(--pos-fg-highlight)" }}>{formError}</p>}
         {note && <p style={{ color: "#e0c341" }}>{note}</p>}
 
         {searching && (
@@ -1042,6 +1054,7 @@ export function ProveedorMaintenancePage({ onBack, userId }: ProveedorMaintenanc
           { key: "F9", label: "Volver" },
         ]}
       />
+      {errorPopup}
     </PosTerminalShell>
   );
 }
