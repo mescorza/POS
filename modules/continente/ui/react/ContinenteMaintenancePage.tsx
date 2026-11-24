@@ -3,18 +3,22 @@ import { PosTerminalShell } from "../../../../shared/ui/pos-terminal/PosTerminal
 import { PosFunctionKeyBar } from "../../../../shared/ui/pos-terminal/PosFunctionKeyBar";
 import { PosField } from "../../../../shared/ui/pos-terminal/PosField";
 import { usePosFocus } from "../../../../shared/ui/pos-terminal/usePosFocus";
+import { PosErrorPopup } from "../../../../shared/ui/pos-terminal/PosErrorPopup";
 import { ContinenteHttpGateway, ContinenteSearchResult } from "../../infrastructure/ContinenteHttpGateway";
 
 /**
  * Administra Direcciones > Mantenedor de Continentes (pos.continente).
- * Etapa 1: sólo consulta (lista paginada + búsqueda por código o nombre).
+ * Consulta (lista paginada + búsqueda por código o nombre) y alta.
  * Teclas: ↑↓ mueve, AvPág/RePág pagina, Inicio/Fin salta, F2 busca,
- * Esc/F9 vuelve. Alta, edición y baja vendrán en etapas siguientes.
+ * F3 nuevo, Esc/F9 vuelve. En el alta: Enter/F5 graba, Esc cancela.
+ * El código lo asigna el sistema; el nombre no puede repetirse.
+ * Edición y baja vendrán en etapas siguientes.
  */
 export interface ContinenteMaintenancePageProps {
   onBack: () => void;
 }
 
+const NOMBRE_MAX = 60;
 const PAGE_SIZE = 15;
 const DEBOUNCE_MS = 250;
 const headerSpan = { fontWeight: "bold", color: "var(--pos-fg)" } as const;
@@ -32,7 +36,18 @@ export function ContinenteMaintenancePage({ onBack }: ContinenteMaintenancePageP
   const [searchQuery, setSearchQuery] = React.useState("");
   const [appliedQuery, setAppliedQuery] = React.useState("");
 
-  const bodyRef = usePosFocus<HTMLDivElement>("browsing");
+  // Alta: formulario en la misma ventana, con el nombre del nuevo continente.
+  const [creating, setCreating] = React.useState(false);
+  const [newName, setNewName] = React.useState("");
+  const [saving, setSaving] = React.useState(false);
+  const [confirmingDiscard, setConfirmingDiscard] = React.useState(false);
+  const [note, setNote] = React.useState<string | null>(null);
+  const [formError, setFormError] = React.useState<{ title: string; message: string } | null>(null);
+  // Tras crear se recarga la lista y se deja seleccionado el nuevo.
+  const keepId = React.useRef<number | null>(null);
+  const [reloadKey, setReloadKey] = React.useState(0);
+
+  const bodyRef = usePosFocus<HTMLDivElement>(creating ? "create" : "browsing");
 
   // Debounce de la búsqueda: cada pausa de tipeo vuelve a la página 1.
   React.useEffect(() => {
@@ -54,7 +69,9 @@ export function ContinenteMaintenancePage({ onBack }: ContinenteMaintenancePageP
         if (cancelled) return;
         setResult(r);
         const last = Math.max(r.items.length - 1, 0);
-        setSelectedIndex(pendingSelect.current === "last" ? last : 0);
+        const keep = keepId.current !== null ? r.items.findIndex((x) => x.id === keepId.current) : -1;
+        keepId.current = null;
+        setSelectedIndex(keep >= 0 ? keep : pendingSelect.current === "last" ? last : 0);
         pendingSelect.current = null;
       })
       .catch((e) => {
@@ -63,13 +80,74 @@ export function ContinenteMaintenancePage({ onBack }: ContinenteMaintenancePageP
     return () => {
       cancelled = true;
     };
-  }, [appliedQuery, page]);
+  }, [appliedQuery, page, reloadKey]);
 
   const items = result?.items ?? [];
   const total = result?.total ?? 0;
   const totalPages = Math.max(Math.ceil(total / PAGE_SIZE), 1);
 
+  const startCreate = () => {
+    setNewName("");
+    setNote(null);
+    setConfirmingDiscard(false);
+    setCreating(true);
+  };
+
+  const cancelCreate = () => {
+    setConfirmingDiscard(false);
+    setCreating(false);
+    setNewName("");
+    setTimeout(() => bodyRef.current?.focus(), 0);
+  };
+
+  const save = async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      const creado = await gateway.create(newName);
+      setCreating(false);
+      setNewName("");
+      setNote(`Continente creado: ${creado.id} - ${creado.nombre}.`);
+      // El nuevo debe verse en la lista: se limpia el filtro y se va a su página.
+      keepId.current = creado.id;
+      setSearchQuery("");
+      setAppliedQuery("");
+      setPage(Math.max(Math.ceil((total + 1) / PAGE_SIZE), 1));
+      setReloadKey((k) => k + 1);
+      setTimeout(() => bodyRef.current?.focus(), 0);
+    } catch (e) {
+      setFormError({
+        title: "No se pudo crear el continente",
+        message: e instanceof Error ? e.message : String(e),
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleKeyDown = (event: React.KeyboardEvent) => {
+    if (creating) {
+      if (confirmingDiscard) {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          cancelCreate();
+        } else if (event.key === "Escape") {
+          event.preventDefault();
+          setConfirmingDiscard(false);
+        }
+        return;
+      }
+      if (event.key === "Enter" || event.key === "F5") {
+        event.preventDefault();
+        void save();
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        if (newName.trim()) setConfirmingDiscard(true);
+        else cancelCreate();
+      }
+      return;
+    }
+
     if (searching) {
       if (event.key === "Enter") {
         event.preventDefault();
@@ -85,6 +163,9 @@ export function ContinenteMaintenancePage({ onBack }: ContinenteMaintenancePageP
       return;
     }
 
+    // Los avisos de una acción anterior se van con la siguiente tecla.
+    if (note) setNote(null);
+
     switch (event.key) {
       case "F9":
       case "Escape":
@@ -94,6 +175,10 @@ export function ContinenteMaintenancePage({ onBack }: ContinenteMaintenancePageP
       case "F2":
         event.preventDefault();
         setSearching(true);
+        return;
+      case "F3":
+        event.preventDefault();
+        startCreate();
         return;
       case "ArrowDown":
         event.preventDefault();
@@ -140,6 +225,25 @@ export function ContinenteMaintenancePage({ onBack }: ContinenteMaintenancePageP
       </div>
       <div className="pos-terminal-body" tabIndex={0} onKeyDown={handleKeyDown} ref={bodyRef}>
         {loadError && <p style={{ color: "var(--pos-fg-highlight)" }}>Error consultando /continentes: {loadError}</p>}
+
+        {note && <p style={{ color: "#e0c341" }}>{note}</p>}
+
+        {creating && (
+          <div style={{ marginBottom: 12 }}>
+            <p style={{ margin: "0 0 8px", color: "var(--pos-fg-highlight)" }}>NUEVO CONTINENTE</p>
+            <PosField label="Código" value="(automático)" onChange={() => undefined} readOnly />
+            <PosField
+              label="Nombre"
+              value={newName}
+              onChange={(v) => setNewName(v.slice(0, NOMBRE_MAX))}
+              autoFocus
+            />
+            {confirmingDiscard && (
+              <p style={{ color: "var(--pos-fg-highlight)" }}>¿Descartar el continente nuevo? Enter = Sí, Esc = No</p>
+            )}
+            {saving && <p>Grabando...</p>}
+          </div>
+        )}
 
         {searching && (
           <PosField label="Buscar (código/nombre)" value={searchQuery} onChange={setSearchQuery} autoFocus />
@@ -195,10 +299,21 @@ export function ContinenteMaintenancePage({ onBack }: ContinenteMaintenancePageP
           { key: "↑↓", label: "Mover selección" },
           { key: "AvPág/RePág", label: "Página" },
           { key: "Inicio/Fin", label: "Primero/Último" },
-          { key: "F2", label: searching ? "Enter=Confirma Esc=Cancela" : "Buscar" },
-          { key: "F9", label: "Volver" },
+          ...(creating
+            ? [
+                { key: "Enter/F5", label: "Grabar" },
+                { key: "Esc", label: "Cancelar" },
+              ]
+            : [
+                { key: "F2", label: searching ? "Enter=Confirma Esc=Cancela" : "Buscar" },
+                { key: "F3", label: "Nuevo" },
+                { key: "F9", label: "Volver" },
+              ]),
         ]}
       />
+      {formError && (
+        <PosErrorPopup title={formError.title} message={formError.message} onClose={() => setFormError(null)} />
+      )}
     </PosTerminalShell>
   );
 }

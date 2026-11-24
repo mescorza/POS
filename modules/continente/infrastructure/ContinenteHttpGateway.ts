@@ -15,6 +15,11 @@ export interface ContinenteSearchResult {
 }
 
 export class ContinenteHttpGateway {
+  /** Devuelve el continente creado, con el código que asignó el sistema. */
+  create(nombre: string): Promise<ContinenteListItem> {
+    return httpJson("POST", "/continentes", { nombre });
+  }
+
   search(q: string, page: number, size: number): Promise<ContinenteSearchResult> {
     const params = new URLSearchParams({ q, page: String(page), size: String(size) });
     return httpJson("GET", `/continentes?${params.toString()}`);

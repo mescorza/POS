@@ -1,5 +1,5 @@
 import { Pool } from "pg";
-import { ContinenteRepository, ContinenteSearchResult } from "../domain/ContinenteRepository";
+import { ContinenteListItem, ContinenteRepository, ContinenteSearchResult } from "../domain/ContinenteRepository";
 
 /** Consulta sobre pos.continente (esquema `pos`). */
 export class PostgresContinenteRepository implements ContinenteRepository {
@@ -43,5 +43,39 @@ export class PostgresContinenteRepository implements ContinenteRepository {
       page,
       pageSize,
     };
+  }
+
+  async buscarPorNombre(nombre: string): Promise<ContinenteListItem | null> {
+    const r = await this.client.query(
+      `SELECT continente_id, nombre FROM pos.continente
+       WHERE lower(btrim(nombre)) = lower(btrim($1)) AND continente_id IS NOT NULL
+       ORDER BY continente_id LIMIT 1`,
+      [nombre]
+    );
+    if (!r.rows.length) return null;
+    return { id: Number(r.rows[0].continente_id), nombre: String(r.rows[0].nombre).trim(), paises: 0 };
+  }
+
+  async create(nombre: string): Promise<ContinenteListItem> {
+    const tx = await this.client.connect();
+    try {
+      await tx.query("BEGIN");
+      // Candado de transacción (se libera solo al terminar): serializa las altas
+      // para que el "máximo + 1" no se repita. La clave es arbitraria pero fija.
+      await tx.query("SELECT pg_advisory_xact_lock(hashtext('pos.continente.alta'))");
+      const r = await tx.query(
+        `INSERT INTO pos.continente (continente_id, nombre)
+         SELECT COALESCE(max(continente_id), 0) + 1, $1 FROM pos.continente
+         RETURNING continente_id, nombre`,
+        [nombre]
+      );
+      await tx.query("COMMIT");
+      return { id: Number(r.rows[0].continente_id), nombre: String(r.rows[0].nombre).trim(), paises: 0 };
+    } catch (e) {
+      await tx.query("ROLLBACK").catch(() => undefined);
+      throw e;
+    } finally {
+      tx.release();
+    }
   }
 }
