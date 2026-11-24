@@ -31,7 +31,7 @@ const MAIN_MENU_OPTIONS: MainMenuOption[] = [
     action: "admin",
     label: "Administración del Sistema",
     boundedContext: "Administración",
-    entryUseCase: "Submenú: usuarios y empleados",
+    entryUseCase: "Submenú: usuarios, empleados y direcciones",
     children: [
       {
         code: "01",
@@ -48,6 +48,64 @@ const MAIN_MENU_OPTIONS: MainMenuOption[] = [
         boundedContext: "Employe",
         entryUseCase:
           "EmployeGetAll / EmployeGetOneById / EmployeCreate / EmployeEdit / EmployeDelete",
+      },
+      {
+        code: "03",
+        action: "addresses",
+        label: "Administra Direcciones",
+        boundedContext: "Direcciones",
+        entryUseCase: "Submenú: continente, país, región, ciudad, comuna, provincia y localidad",
+        children: [
+          {
+            code: "01",
+            action: "dir-continente",
+            label: "Mantenedor de Continentes",
+            boundedContext: "Direcciones",
+            entryUseCase: "Pendiente",
+          },
+          {
+            code: "02",
+            action: "dir-pais",
+            label: "Mantenedor de Países",
+            boundedContext: "Direcciones",
+            entryUseCase: "Pendiente",
+          },
+          {
+            code: "03",
+            action: "dir-region",
+            label: "Mantenedor de Regiones",
+            boundedContext: "Direcciones",
+            entryUseCase: "Pendiente",
+          },
+          {
+            code: "04",
+            action: "dir-ciudad",
+            label: "Mantenedor de Ciudades",
+            boundedContext: "Direcciones",
+            entryUseCase: "Pendiente",
+          },
+          {
+            code: "05",
+            action: "dir-comuna",
+            label: "Mantenedor de Comunas",
+            boundedContext: "Direcciones",
+            entryUseCase: "Pendiente",
+          },
+          {
+            code: "06",
+            action: "dir-provincia",
+            label: "Mantenedor de Provincias",
+            boundedContext: "Direcciones",
+            entryUseCase: "Pendiente",
+          },
+          {
+            code: "07",
+            action: "dir-localidad",
+            label: "Mantenedor de Localidades",
+            boundedContext: "Direcciones",
+            entryUseCase: "Pendiente",
+          },
+        ],
       },
     ],
   },
@@ -129,7 +187,9 @@ export function MainMenuPage({ onOptionConfirmed, user }: MainMenuPageProps) {
     null
   );
 
-  const [submenu, setSubmenu] = React.useState<MainMenuOption | null>(null);
+  // Pila de submenús abiertos (admite submenús dentro de submenús).
+  const [path, setPath] = React.useState<MainMenuOption[]>([]);
+  const submenu = path.length ? path[path.length - 1] : null;
   const options = submenu?.children ?? MAIN_MENU_OPTIONS;
   const selectedOption = options[selectedIndex];
   const bodyRef = usePosFocus<HTMLDivElement>("menu");
@@ -143,7 +203,7 @@ export function MainMenuPage({ onOptionConfirmed, user }: MainMenuPageProps) {
 
   const confirmSelection = () => {
     if (selectedOption.children) {
-      setSubmenu(selectedOption);
+      setPath([...path, selectedOption]);
       setSelectedIndex(0);
       setTypedCode("");
       setStatusMessage(null);
@@ -183,8 +243,10 @@ export function MainMenuPage({ onOptionConfirmed, user }: MainMenuPageProps) {
       setTypedCode("");
       setStatusMessage(null);
       if (submenu) {
-        setSelectedIndex(MAIN_MENU_OPTIONS.indexOf(submenu));
-        setSubmenu(null);
+        // Vuelve un nivel, dejando seleccionada la opción de la que se salió.
+        const parentOptions = path.length > 1 ? path[path.length - 2].children! : MAIN_MENU_OPTIONS;
+        setSelectedIndex(parentOptions.indexOf(submenu));
+        setPath(path.slice(0, -1));
       }
       return;
     }
