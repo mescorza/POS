@@ -34,6 +34,7 @@ export default defineConfig({
       "/informes": "http://localhost:3000",
       "/proveedores": "http://localhost:3000",
       "/maestros": "http://localhost:3000",
+      "/continentes": "http://localhost:3000",
     },
   },
 });

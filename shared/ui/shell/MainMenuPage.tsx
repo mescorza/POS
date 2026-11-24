@@ -61,7 +61,7 @@ const MAIN_MENU_OPTIONS: MainMenuOption[] = [
             action: "dir-continente",
             label: "Mantenedor de Continentes",
             boundedContext: "Direcciones",
-            entryUseCase: "Pendiente",
+            entryUseCase: "ContinenteSearch (solo consulta)",
           },
           {
             code: "02",
