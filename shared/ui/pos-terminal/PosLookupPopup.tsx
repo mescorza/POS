@@ -8,8 +8,9 @@ import * as React from "react";
  * codificados; sólo cambia el título y de dónde vienen los datos.
  *
  * Teclas: escribir filtra, ↑↓ mueve, AvPág/RePág pagina, Inicio/Fin salta,
- * Enter selecciona, Esc cancela. Captura el teclado (stopPropagation) para
- * que el formulario de abajo no reaccione.
+ * Enter selecciona, Esc cancela. Captura TODO el teclado a nivel de ventana
+ * mientras está abierto (stopPropagation) para que el formulario de abajo no
+ * reaccione y para que Esc funcione aunque el foco se haya salido del campo.
  */
 export interface LookupRow {
   id: string;
@@ -99,8 +100,9 @@ export function PosLookupPopup({
   const total = data?.total ?? 0;
   const totalPages = Math.max(Math.ceil(total / SIZE), 1);
 
-  const handleKeyDown = (event: React.KeyboardEvent) => {
-    // Todo lo que se teclea aquí es del pop-up, no del formulario de atrás.
+  const handleKeyDown = (event: KeyboardEvent | React.KeyboardEvent) => {
+    // Todo lo que se teclea mientras el pop-up está abierto es del pop-up, no
+    // del formulario de atrás (p. ej. F5 no debe guardar por detrás).
     event.stopPropagation();
 
     switch (event.key) {
@@ -150,6 +152,19 @@ export function PosLookupPopup({
     }
   };
 
+  // El teclado se escucha a nivel de ventana (fase de captura), no sólo en el
+  // campo de búsqueda: si el foco se sale de él (p. ej. un clic sobre el texto
+  // "No hay registros"), Esc/Enter/flechas deben seguir funcionando. Sin esto,
+  // con 0 resultados -- donde no hay filas que elegir -- el pop-up quedaba
+  // atrapado. El ref evita re-registrar el listener en cada render.
+  const keyHandlerRef = React.useRef(handleKeyDown);
+  keyHandlerRef.current = handleKeyDown;
+  React.useEffect(() => {
+    const listener = (e: KeyboardEvent) => keyHandlerRef.current(e);
+    window.addEventListener("keydown", listener, true);
+    return () => window.removeEventListener("keydown", listener, true);
+  }, []);
+
   return (
     <div
       style={{
@@ -161,7 +176,12 @@ export function PosLookupPopup({
         justifyContent: "center",
         zIndex: 10,
       }}
-      onKeyDown={handleKeyDown}
+      // Ventana modal: un clic en cualquier parte que no sea el campo de
+      // búsqueda no debe quitarle el foco (los clics sobre las filas siguen
+      // funcionando; sólo se evita el cambio de foco).
+      onMouseDown={(e) => {
+        if (e.target !== inputRef.current) e.preventDefault();
+      }}
     >
       <div
         role="dialog"
@@ -185,6 +205,8 @@ export function PosLookupPopup({
             ref={inputRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            // Modal: si el foco se pierde por otra vía, vuelve al buscador.
+            onBlur={() => setTimeout(() => inputRef.current?.focus(), 0)}
             style={{
               flex: 1,
               background: "var(--pos-bg)",
