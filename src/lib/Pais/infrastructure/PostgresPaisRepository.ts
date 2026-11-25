@@ -1,9 +1,29 @@
 import { Pool } from "pg";
-import { PaisRepository, PaisSearchResult } from "../domain/PaisRepository";
+import { PaisCreateValues, PaisListItem, PaisRepository, PaisSearchResult } from "../domain/PaisRepository";
 
 const s = (v: unknown): string => (v === null || v === undefined ? "" : String(v).trim());
 
-/** Consulta sobre pos.pais (esquema `pos`). */
+/** SELECT común de la lista y del detalle: continente + conteos de uso. */
+const SELECT_PAIS = `
+  SELECT p.pais_id, p.nombre, p.continente_id, c.nombre AS continente,
+         p.codigo_iso2, p.saad_codigo,
+         (SELECT count(*) FROM pos.region r WHERE r.pais_id = p.pais_id) AS regiones,
+         (SELECT count(*) FROM pos.proveedor v WHERE v.pais_id = p.pais_id) AS proveedores`;
+
+function toItem(r: Record<string, unknown>): PaisListItem {
+  return {
+    id: Number(r.pais_id),
+    nombre: s(r.nombre),
+    continenteId: Number(r.continente_id),
+    continente: s(r.continente),
+    iso2: s(r.codigo_iso2),
+    saad: s(r.saad_codigo),
+    regiones: Number(r.regiones),
+    proveedores: Number(r.proveedores),
+  };
+}
+
+/** Acceso a pos.pais (esquema `pos`). */
 export class PostgresPaisRepository implements PaisRepository {
   private client: Pool;
 
@@ -26,11 +46,7 @@ export class PostgresPaisRepository implements PaisRepository {
 
     const result = await this.client.query({
       text: `
-        SELECT p.pais_id, p.nombre, p.continente_id, c.nombre AS continente,
-               p.codigo_iso2, p.saad_codigo,
-               (SELECT count(*) FROM pos.region r WHERE r.pais_id = p.pais_id) AS regiones,
-               (SELECT count(*) FROM pos.proveedor v WHERE v.pais_id = p.pais_id) AS proveedores,
-               count(*) OVER() AS total
+        ${SELECT_PAIS}, count(*) OVER() AS total
         FROM pos.pais p
         LEFT JOIN pos.continente c ON c.continente_id = p.continente_id
         WHERE ${where}
@@ -40,19 +56,76 @@ export class PostgresPaisRepository implements PaisRepository {
     });
 
     return {
-      items: result.rows.map((r) => ({
-        id: Number(r.pais_id),
-        nombre: s(r.nombre),
-        continenteId: Number(r.continente_id),
-        continente: s(r.continente),
-        iso2: s(r.codigo_iso2),
-        saad: s(r.saad_codigo),
-        regiones: Number(r.regiones),
-        proveedores: Number(r.proveedores),
-      })),
+      items: result.rows.map(toItem),
       total: result.rows.length ? Number(result.rows[0].total) : 0,
       page,
       pageSize,
     };
+  }
+
+  async getById(id: number): Promise<PaisListItem | null> {
+    const r = await this.client.query(
+      `${SELECT_PAIS}
+       FROM pos.pais p
+       LEFT JOIN pos.continente c ON c.continente_id = p.continente_id
+       WHERE p.pais_id = $1`,
+      [id]
+    );
+    return r.rows.length ? toItem(r.rows[0]) : null;
+  }
+
+  async buscarPorNombre(nombre: string): Promise<PaisListItem | null> {
+    const r = await this.client.query(
+      `${SELECT_PAIS}
+       FROM pos.pais p
+       LEFT JOIN pos.continente c ON c.continente_id = p.continente_id
+       WHERE lower(btrim(p.nombre)) = lower(btrim($1))
+       ORDER BY p.pais_id LIMIT 1`,
+      [nombre]
+    );
+    return r.rows.length ? toItem(r.rows[0]) : null;
+  }
+
+  async buscarPorIso2(iso2: string): Promise<PaisListItem | null> {
+    const r = await this.client.query(
+      `${SELECT_PAIS}
+       FROM pos.pais p
+       LEFT JOIN pos.continente c ON c.continente_id = p.continente_id
+       WHERE upper(btrim(p.codigo_iso2)) = upper(btrim($1))
+       ORDER BY p.pais_id LIMIT 1`,
+      [iso2]
+    );
+    return r.rows.length ? toItem(r.rows[0]) : null;
+  }
+
+  async continenteExiste(continenteId: number): Promise<boolean> {
+    const r = await this.client.query("SELECT 1 FROM pos.continente WHERE continente_id = $1 LIMIT 1", [
+      continenteId,
+    ]);
+    return r.rows.length > 0;
+  }
+
+  async create(v: PaisCreateValues): Promise<number> {
+    const tx = await this.client.connect();
+    try {
+      await tx.query("BEGIN");
+      // Candado de transacción (se libera solo al terminar): serializa las altas
+      // para que el "máximo + 1" no se repita. pos.pais tiene PK, así que un
+      // choque se vería como error, pero así ni siquiera ocurre.
+      await tx.query("SELECT pg_advisory_xact_lock(hashtext('pos.pais.alta'))");
+      const r = await tx.query(
+        `INSERT INTO pos.pais (pais_id, nombre, continente_id, saad_codigo, saad_descripcion, externalid, codigo_iso2)
+         SELECT COALESCE(max(pais_id), 0) + 1, $1, $2, $3, $4, NULL, $5 FROM pos.pais
+         RETURNING pais_id`,
+        [v.nombre, v.continenteId, v.saad, v.saadDescripcion, v.iso2]
+      );
+      await tx.query("COMMIT");
+      return Number(r.rows[0].pais_id);
+    } catch (e) {
+      await tx.query("ROLLBACK").catch(() => undefined);
+      throw e;
+    } finally {
+      tx.release();
+    }
   }
 }

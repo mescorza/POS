@@ -19,7 +19,22 @@ export interface PaisSearchResult {
   pageSize: number;
 }
 
+/** Campos del alta (POST /paises). El código lo asigna el servidor. */
+export interface PaisCreateInput {
+  nombre: string;
+  continenteId: number;
+  iso2: string;
+  saad: string;
+  /** Vacío = el servidor usa el nombre. */
+  saadDescripcion: string;
+}
+
 export class PaisHttpGateway {
+  /** Devuelve el país creado, con el código que asignó el sistema. */
+  create(input: PaisCreateInput): Promise<PaisListItem> {
+    return httpJson("POST", "/paises", input);
+  }
+
   search(q: string, page: number, size: number): Promise<PaisSearchResult> {
     const params = new URLSearchParams({ q, page: String(page), size: String(size) });
     return httpJson("GET", `/paises?${params.toString()}`);

@@ -50,7 +50,9 @@ export function ContinenteMaintenancePage({ onBack }: ContinenteMaintenancePageP
   const keepId = React.useRef<number | null>(null);
   const [reloadKey, setReloadKey] = React.useState(0);
 
-  const bodyRef = usePosFocus<HTMLDivElement>(creating ? "create" : "browsing");
+  // Clave fija: si cambiara al abrir el formulario, usePosFocus enfocaría el cuerpo
+  // y le quitaría el foco al campo Nombre (autoFocus sólo actúa al montarse).
+  const bodyRef = usePosFocus<HTMLDivElement>("browsing");
 
   // Debounce de la búsqueda: cada pausa de tipeo vuelve a la página 1.
   React.useEffect(() => {
