@@ -1,5 +1,5 @@
 import * as React from "react";
-import { MainMenuPage } from "../shared/ui/shell/MainMenuPage";
+import { MainMenuLocation, MainMenuPage } from "../shared/ui/shell/MainMenuPage";
 import { UserMaintenancePage } from "../modules/user/ui/react/UserMaintenancePage";
 import { EmployeListPage } from "../modules/employe/ui/react/EmployeListPage";
 import { LoginPage } from "../modules/auth/ui/react/LoginPage";
@@ -28,6 +28,8 @@ type Screen = "menu" | "users" | "employees" | "informes" | "suppliers" | "conti
 export function App() {
   const [session, setSession] = React.useState<AuthSession | null>(null);
   const [screen, setScreen] = React.useState<Screen>("menu");
+  // Dónde estaba el menú al abrir una pantalla: Esc vuelve ahí y no a la raíz.
+  const [menuLocation, setMenuLocation] = React.useState<MainMenuLocation | undefined>(undefined);
 
   if (!session) {
     return <LoginPage onSuccess={setSession} />;
@@ -68,7 +70,9 @@ export function App() {
   return (
     <MainMenuPage
       user={session.username}
-      onOptionConfirmed={(option) => {
+      initialLocation={menuLocation}
+      onOptionConfirmed={(option, location) => {
+        setMenuLocation(location);
         if (option.action === "users") {
           setScreen("users");
         } else if (option.action === "employees") {
@@ -85,6 +89,7 @@ export function App() {
           setScreen("ciudades");
         } else if (option.action === "signout") {
           setSession(null);
+          setMenuLocation(undefined);
         } else if (option.action === "informes") {
           setScreen("informes");
         }

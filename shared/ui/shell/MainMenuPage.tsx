@@ -175,20 +175,44 @@ export interface MainMenuPageProps {
    * de sesión (regla 1A.2); no navega directamente. Quien lo monte decide
    * qué hacer con la opción confirmada (por ahora puede quedar sin usar).
    */
-  onOptionConfirmed?: (option: MainMenuOption) => void;
+  onOptionConfirmed?: (option: MainMenuOption, location: MainMenuLocation) => void;
   /** Username de la sesión activa (AuthSignIn); se muestra en el encabezado. */
   user?: string;
+  /**
+   * Ubicación a restaurar al montar el menú (códigos de los submenús abiertos y
+   * de la opción seleccionada), para volver al mismo lugar desde una pantalla.
+   */
+  initialLocation?: MainMenuLocation;
 }
 
-export function MainMenuPage({ onOptionConfirmed, user }: MainMenuPageProps) {
-  const [selectedIndex, setSelectedIndex] = React.useState(0);
+/** Dónde estaba el usuario en el menú: submenús abiertos (por código) y opción elegida. */
+export interface MainMenuLocation {
+  path: string[];
+  selected: string;
+}
+
+function resolveLocation(loc?: MainMenuLocation): { path: MainMenuOption[]; index: number } {
+  const path: MainMenuOption[] = [];
+  let options = MAIN_MENU_OPTIONS;
+  for (const code of loc?.path ?? []) {
+    const o = options.find((x) => x.code === code);
+    if (!o?.children) break;
+    path.push(o);
+    options = o.children;
+  }
+  return { path, index: Math.max(options.findIndex((x) => x.code === loc?.selected), 0) };
+}
+
+export function MainMenuPage({ onOptionConfirmed, user, initialLocation }: MainMenuPageProps) {
+  const initial = React.useMemo(() => resolveLocation(initialLocation), []); // eslint-disable-line react-hooks/exhaustive-deps
+  const [selectedIndex, setSelectedIndex] = React.useState(initial.index);
   const [typedCode, setTypedCode] = React.useState("");
   const [statusMessage, setStatusMessage] = React.useState<string | null>(
     null
   );
 
   // Pila de submenús abiertos (admite submenús dentro de submenús).
-  const [path, setPath] = React.useState<MainMenuOption[]>([]);
+  const [path, setPath] = React.useState<MainMenuOption[]>(initial.path);
   const submenu = path.length ? path[path.length - 1] : null;
   const options = submenu?.children ?? MAIN_MENU_OPTIONS;
   const selectedOption = options[selectedIndex];
@@ -212,7 +236,7 @@ export function MainMenuPage({ onOptionConfirmed, user }: MainMenuPageProps) {
     setStatusMessage(
       `Abriendo opción ${selectedOption.code} - ${selectedOption.label}  (destino aún no implementado)`
     );
-    onOptionConfirmed?.(selectedOption);
+    onOptionConfirmed?.(selectedOption, { path: path.map((p) => p.code), selected: selectedOption.code });
   };
 
   const handleKeyDown = (event: React.KeyboardEvent) => {
