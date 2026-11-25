@@ -3,14 +3,19 @@ import { PosTerminalShell } from "../../../../shared/ui/pos-terminal/PosTerminal
 import { PosFunctionKeyBar } from "../../../../shared/ui/pos-terminal/PosFunctionKeyBar";
 import { PosField } from "../../../../shared/ui/pos-terminal/PosField";
 import { usePosFocus } from "../../../../shared/ui/pos-terminal/usePosFocus";
+import { PosErrorPopup } from "../../../../shared/ui/pos-terminal/PosErrorPopup";
+import { PosLookupPopup } from "../../../../shared/ui/pos-terminal/PosLookupPopup";
+import { PaisHttpGateway } from "../../../pais/infrastructure/PaisHttpGateway";
 import { RegionHttpGateway, RegionSearchResult } from "../../infrastructure/RegionHttpGateway";
 
 /**
  * Administra Direcciones > Mantenedor de Regiones (pos.region).
- * Etapa 1: sólo consulta (lista paginada + búsqueda por nombre, código, SAAD
- * o país).
+ * Consulta (lista paginada + búsqueda por nombre, código, SAAD o país) y alta.
  * Teclas: ↑↓ mueve, AvPág/RePág pagina, Inicio/Fin salta, F2 busca,
- * Esc/F9 vuelve. Alta, edición y baja vendrán en etapas siguientes.
+ * F3 nuevo, Esc/F9 vuelve. En el formulario de alta: Enter avanza al campo
+ * siguiente (en País abre el pop-up de búsqueda; en el último graba), F5
+ * graba, Esc cancela. El código lo genera la base. Edición y baja vendrán en
+ * etapas siguientes.
  */
 export interface RegionMaintenancePageProps {
   onBack: () => void;
@@ -18,9 +23,22 @@ export interface RegionMaintenancePageProps {
 
 const PAGE_SIZE = 15;
 const DEBOUNCE_MS = 250;
+const MAX = { nombre: 100, saad: 8, saadDescripcion: 100 } as const;
+/** Posición del campo País entre los campos enfocables del formulario (sin Código). */
+const PAIS_FIELD = 0;
 const headerSpan = { fontWeight: "bold", color: "var(--pos-fg)" } as const;
 
+interface Draft {
+  paisId: number | null;
+  pais: string;
+  nombre: string;
+  saad: string;
+  saadDescripcion: string;
+}
+const EMPTY: Draft = { paisId: null, pais: "", nombre: "", saad: "", saadDescripcion: "" };
+
 const gateway = new RegionHttpGateway();
+const paises = new PaisHttpGateway();
 
 export function RegionMaintenancePage({ onBack }: RegionMaintenancePageProps) {
   const [result, setResult] = React.useState<RegionSearchResult | null>(null);
@@ -33,6 +51,20 @@ export function RegionMaintenancePage({ onBack }: RegionMaintenancePageProps) {
   const [searchQuery, setSearchQuery] = React.useState("");
   const [appliedQuery, setAppliedQuery] = React.useState("");
 
+  // Alta: formulario en la misma ventana.
+  const [creating, setCreating] = React.useState(false);
+  const [draft, setDraft] = React.useState<Draft>(EMPTY);
+  const [saving, setSaving] = React.useState(false);
+  const [confirmingDiscard, setConfirmingDiscard] = React.useState(false);
+  const [lookupOpen, setLookupOpen] = React.useState(false);
+  const [note, setNote] = React.useState<string | null>(null);
+  const [formError, setFormError] = React.useState<{ title: string; message: string } | null>(null);
+  const [reloadKey, setReloadKey] = React.useState(0);
+  const formRef = React.useRef<HTMLDivElement>(null);
+  const lookupOrigin = React.useRef<HTMLInputElement | null>(null);
+
+  // Clave fija: si cambiara al abrir el formulario, usePosFocus enfocaría el cuerpo
+  // y le quitaría el foco al primer campo (autoFocus sólo actúa al montarse).
   const bodyRef = usePosFocus<HTMLDivElement>("browsing");
 
   // Debounce de la búsqueda: cada pausa de tipeo vuelve a la página 1.
@@ -64,13 +96,119 @@ export function RegionMaintenancePage({ onBack }: RegionMaintenancePageProps) {
     return () => {
       cancelled = true;
     };
-  }, [appliedQuery, page]);
+  }, [appliedQuery, page, reloadKey]);
 
   const items = result?.items ?? [];
   const total = result?.total ?? 0;
   const totalPages = Math.max(Math.ceil(total / PAGE_SIZE), 1);
 
+  /** Campos enfocables del formulario, sin el Código (primero y de sólo lectura). */
+  const fields = (): HTMLInputElement[] =>
+    Array.from(formRef.current?.querySelectorAll("input") ?? []).slice(1) as HTMLInputElement[];
+
+  const set = <K extends keyof Draft>(key: K, value: Draft[K]) => setDraft((d) => ({ ...d, [key]: value }));
+
+  const dirty = JSON.stringify(draft) !== JSON.stringify(EMPTY);
+
+  const startCreate = () => {
+    setDraft(EMPTY);
+    setNote(null);
+    setConfirmingDiscard(false);
+    setCreating(true);
+  };
+
+  const cancelCreate = () => {
+    setConfirmingDiscard(false);
+    setCreating(false);
+    setDraft(EMPTY);
+    setTimeout(() => bodyRef.current?.focus(), 0);
+  };
+
+  const save = async () => {
+    if (saving) return;
+    const title = "No se pudo crear la región";
+    if (draft.paisId === null) {
+      setFormError({ title, message: "País es obligatorio. Elíjalo con Enter o F2." });
+      return;
+    }
+    setSaving(true);
+    try {
+      const creada = await gateway.create({
+        nombre: draft.nombre,
+        paisId: draft.paisId,
+        saad: draft.saad,
+        saadDescripcion: draft.saadDescripcion,
+      });
+      setCreating(false);
+      setDraft(EMPTY);
+      setNote(`Región creada: ${creada.id} - ${creada.nombre} (${creada.pais}).`);
+      // La nueva debe verse en la lista: se filtra por su nombre.
+      setSearchQuery(creada.nombre);
+      setAppliedQuery(creada.nombre);
+      setPage(1);
+      setReloadKey((k) => k + 1);
+      setTimeout(() => bodyRef.current?.focus(), 0);
+    } catch (e) {
+      setFormError({ title, message: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const openPaisLookup = () => {
+    lookupOrigin.current = fields()[PAIS_FIELD] ?? null;
+    setLookupOpen(true);
+  };
+
+  const closeLookup = (advance: boolean) => {
+    const origin = lookupOrigin.current;
+    setLookupOpen(false);
+    // El foco vuelve al campo País, o pasa al siguiente si se eligió un valor.
+    setTimeout(() => {
+      const all = fields();
+      const i = origin ? all.indexOf(origin) : -1;
+      (advance ? (all[i + 1] ?? origin) : origin)?.focus();
+    }, 0);
+  };
+
   const handleKeyDown = (event: React.KeyboardEvent) => {
+    if (creating) {
+      if (confirmingDiscard) {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          cancelCreate();
+        } else if (event.key === "Escape") {
+          event.preventDefault();
+          setConfirmingDiscard(false);
+        }
+        return;
+      }
+      const all = fields();
+      const idx = all.indexOf(document.activeElement as HTMLInputElement);
+      switch (event.key) {
+        case "Enter":
+          event.preventDefault();
+          if (idx === PAIS_FIELD) openPaisLookup();
+          else if (idx >= 0 && idx < all.length - 1) all[idx + 1].focus();
+          else void save();
+          return;
+        case "F2":
+          event.preventDefault();
+          if (idx === PAIS_FIELD) openPaisLookup();
+          return;
+        case "F5":
+          event.preventDefault();
+          void save();
+          return;
+        case "Escape":
+          event.preventDefault();
+          if (dirty) setConfirmingDiscard(true);
+          else cancelCreate();
+          return;
+      }
+      return;
+    }
+
     if (searching) {
       if (event.key === "Enter") {
         event.preventDefault();
@@ -86,6 +224,9 @@ export function RegionMaintenancePage({ onBack }: RegionMaintenancePageProps) {
       return;
     }
 
+    // Los avisos de una acción anterior se van con la siguiente tecla.
+    if (note) setNote(null);
+
     switch (event.key) {
       case "F9":
       case "Escape":
@@ -95,6 +236,10 @@ export function RegionMaintenancePage({ onBack }: RegionMaintenancePageProps) {
       case "F2":
         event.preventDefault();
         setSearching(true);
+        return;
+      case "F3":
+        event.preventDefault();
+        startCreate();
         return;
       case "ArrowDown":
         event.preventDefault();
@@ -141,6 +286,40 @@ export function RegionMaintenancePage({ onBack }: RegionMaintenancePageProps) {
       </div>
       <div className="pos-terminal-body" tabIndex={0} onKeyDown={handleKeyDown} ref={bodyRef}>
         {loadError && <p style={{ color: "var(--pos-fg-highlight)" }}>Error consultando /regiones: {loadError}</p>}
+
+        {note && <p style={{ color: "#e0c341" }}>{note}</p>}
+
+        {creating && (
+          <div ref={formRef} style={{ marginBottom: 12 }}>
+            <p style={{ margin: "0 0 8px", color: "var(--pos-fg-highlight)" }}>NUEVA REGIÓN</p>
+            <PosField label="Código" value="(automático)" onChange={() => undefined} readOnly />
+            <PosField
+              label="País"
+              value={draft.paisId === null ? "" : `${draft.paisId} - ${draft.pais}`}
+              onChange={() => undefined}
+              readOnly
+              autoFocus
+            />
+            <PosField label="Nombre" value={draft.nombre} onChange={(v) => set("nombre", v.slice(0, MAX.nombre))} />
+            <PosField
+              label="SAAD código"
+              value={draft.saad}
+              onChange={(v) => set("saad", v.toUpperCase().slice(0, MAX.saad))}
+            />
+            <PosField
+              label="SAAD descripción"
+              value={draft.saadDescripcion}
+              onChange={(v) => set("saadDescripcion", v.slice(0, MAX.saadDescripcion))}
+            />
+            <p style={{ color: "var(--pos-fg-dim)", margin: "4px 0" }}>
+              SAAD descripción vacía = se usa el nombre. País: Enter o F2 para buscar.
+            </p>
+            {confirmingDiscard && (
+              <p style={{ color: "var(--pos-fg-highlight)" }}>¿Descartar la región nueva? Enter = Sí, Esc = No</p>
+            )}
+            {saving && <p>Grabando...</p>}
+          </div>
+        )}
 
         {searching && (
           <PosField label="Buscar (nombre/cód/país)" value={searchQuery} onChange={setSearchQuery} autoFocus />
@@ -201,10 +380,37 @@ export function RegionMaintenancePage({ onBack }: RegionMaintenancePageProps) {
           { key: "↑↓", label: "Mover selección" },
           { key: "AvPág/RePág", label: "Página" },
           { key: "Inicio/Fin", label: "Primero/Último" },
-          { key: "F2", label: searching ? "Enter=Confirma Esc=Cancela" : "Buscar" },
-          { key: "F9", label: "Volver" },
+          ...(creating
+            ? [
+                { key: "Enter", label: "Siguiente / País: buscar" },
+                { key: "F5", label: "Grabar" },
+                { key: "Esc", label: "Cancelar" },
+              ]
+            : [
+                { key: "F2", label: searching ? "Enter=Confirma Esc=Cancela" : "Buscar" },
+                { key: "F3", label: "Nuevo" },
+                { key: "F9", label: "Volver" },
+              ]),
         ]}
       />
+      {lookupOpen && (
+        <PosLookupPopup
+          title="Países"
+          currentId={draft.paisId === null ? undefined : String(draft.paisId)}
+          fetchPage={async (q, p, size) => {
+            const r = await paises.search(q, p, size);
+            return { items: r.items.map((x) => ({ id: String(x.id), name: x.nombre })), total: r.total };
+          }}
+          onSelect={(row) => {
+            setDraft((d) => ({ ...d, paisId: Number(row.id), pais: row.name }));
+            closeLookup(true);
+          }}
+          onClose={() => closeLookup(false)}
+        />
+      )}
+      {formError && (
+        <PosErrorPopup title={formError.title} message={formError.message} onClose={() => setFormError(null)} />
+      )}
     </PosTerminalShell>
   );
 }

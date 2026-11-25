@@ -1,7 +1,7 @@
 /**
- * Maestro de regiones (esquema `pos`, tabla pos.region; PK region_id, identity).
- * Cuelga de un país (pais_id) y lo referencian pos.ciudad, pos.provincia y
- * pos.proveedor por region_id (sin FK declarada). Etapa 1: sólo consulta.
+ * Maestro de regiones (esquema `pos`, tabla pos.region; PK region_id, identity
+ * ALWAYS). Cuelga de un país (pais_id) y lo referencian pos.ciudad,
+ * pos.provincia y pos.proveedor (sin FK declarada).
  */
 export interface RegionListItem {
   id: number;
@@ -11,6 +11,8 @@ export interface RegionListItem {
   pais: string;
   /** Código SAAD (saad_codigo). */
   saad: string;
+  /** Descripción SAAD (saad_descripcion). */
+  saadDescripcion: string;
   /** Ciudades de pos.ciudad que cuelgan de esta región. */
   ciudades: number;
   /**
@@ -30,6 +32,36 @@ export interface RegionSearchResult {
   pageSize: number;
 }
 
+/** Datos ya normalizados que se guardan en un alta (region_id lo genera la base). */
+export interface RegionCreateValues {
+  nombre: string;
+  paisId: number;
+  saad: string;
+  saadDescripcion: string;
+}
+
 export interface RegionRepository {
   search(q: string, page: number, pageSize: number): Promise<RegionSearchResult>;
+  getById(id: number): Promise<RegionListItem | null>;
+  /**
+   * Inserta la región; region_id lo asigna la identity de la tabla (no hay que
+   * calcularlo ni bloquear). externalid queda NULL. Devuelve el id asignado.
+   */
+  create(values: RegionCreateValues): Promise<number>;
+  /** Región de ese país con ese nombre (sin distinguir mayúsculas ni espacios de borde), si existe. */
+  buscarPorNombreEnPais(nombre: string, paisId: number): Promise<RegionListItem | null>;
+  paisExiste(paisId: number): Promise<boolean>;
+}
+
+/** Datos inválidos (obligatorios vacíos, largos excedidos, país inexistente). Responde 400. */
+export class RegionInvalidError extends Error {}
+
+/** Ya existe una región con ese nombre en ese país. Responde 409. */
+export class RegionDuplicadaError extends RegionInvalidError {}
+
+/** No existe la región pedida. Responde 404. */
+export class RegionNotFoundError extends Error {
+  constructor(id: number) {
+    super(`Región ${id} no encontrada`);
+  }
 }
