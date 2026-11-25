@@ -8,6 +8,7 @@ import { ExpressAuthRouter } from "./lib/auth/infrastructure/ExpressAuthRouter";
 import { ExpressProveedorRouter } from "./lib/Proveedor/infrastructure/ExpressProveedorRouter";
 import { ExpressMaestroRouter } from "./lib/Shared/infrastructure/ExpressMaestroRouter";
 import { ExpressContinenteRouter } from "./lib/Continente/infrastructure/ExpressContinenteRouter";
+import { ExpressPaisRouter } from "./lib/Pais/infrastructure/ExpressPaisRouter";
 
 const app = express();
 
@@ -21,6 +22,7 @@ app.use(ExpressAuthRouter);
 app.use(ExpressProveedorRouter);
 app.use(ExpressMaestroRouter);
 app.use(ExpressContinenteRouter);
+app.use(ExpressPaisRouter);
 
 app.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
   if (err instanceof Error) {

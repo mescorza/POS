@@ -68,7 +68,7 @@ const MAIN_MENU_OPTIONS: MainMenuOption[] = [
             action: "dir-pais",
             label: "Mantenedor de Países",
             boundedContext: "Direcciones",
-            entryUseCase: "Pendiente",
+            entryUseCase: "PaisSearch (solo consulta)",
           },
           {
             code: "03",
