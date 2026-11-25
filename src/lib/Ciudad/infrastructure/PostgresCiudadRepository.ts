@@ -10,6 +10,7 @@ const s = (v: unknown): string => (v === null || v === undefined ? "" : String(v
 
 const SELECT_CIUDAD = `
   SELECT c.ciudad_id, c.nombre, c.region_id, r.nombre AS region, p.nombre AS pais, c.saad_codigo,
+         c.saad_descripcion,
          (SELECT count(*) FROM pos.comuna m WHERE m.ciudad_id = c.ciudad_id) AS comunas,
          (SELECT count(*) FROM pos.proveedor x WHERE x.ciudad_id = c.ciudad_id) AS proveedores`;
 
@@ -20,6 +21,7 @@ const toItem = (r: any): CiudadListItem => ({
   region: s(r.region),
   pais: s(r.pais),
   saad: s(r.saad_codigo),
+  saadDescripcion: s(r.saad_descripcion),
   comunas: Number(r.comunas),
   proveedores: Number(r.proveedores),
 });
@@ -44,17 +46,28 @@ export class PostgresCiudadRepository implements CiudadRepository {
     return r.rows.length ? toItem(r.rows[0]) : null;
   }
 
-  async buscarPorNombreEnRegion(nombre: string, regionId: number): Promise<CiudadListItem | null> {
+  async buscarPorNombreEnRegion(nombre: string, regionId: number, excluirId?: number): Promise<CiudadListItem | null> {
     const r = await this.client.query(
       `${SELECT_CIUDAD}
        FROM pos.ciudad c
        LEFT JOIN pos.region r ON r.region_id = c.region_id
        LEFT JOIN pos.pais p ON p.pais_id = r.pais_id
        WHERE c.region_id = $2 AND lower(btrim(c.nombre)) = lower(btrim($1))
+         AND ($3::int IS NULL OR c.ciudad_id <> $3)
        ORDER BY c.ciudad_id LIMIT 1`,
-      [nombre, regionId]
+      [nombre, regionId, excluirId ?? null]
     );
     return r.rows.length ? toItem(r.rows[0]) : null;
+  }
+
+  /** Sólo las 4 columnas editables; ciudad_id y externalid no se tocan. */
+  async update(id: number, v: CiudadCreateValues): Promise<void> {
+    await this.client.query(
+      `UPDATE pos.ciudad
+          SET nombre = $2, region_id = $3, saad_codigo = $4, saad_descripcion = $5
+        WHERE ciudad_id = $1`,
+      [id, v.nombre, v.regionId, v.saad, v.saadDescripcion]
+    );
   }
 
   async regionExiste(regionId: number): Promise<boolean> {
@@ -88,7 +101,7 @@ export class PostgresCiudadRepository implements CiudadRepository {
 
     const result = await this.client.query({
       text: `
-        SELECT c.ciudad_id, c.nombre, c.region_id, r.nombre AS region, p.nombre AS pais, c.saad_codigo,
+        SELECT c.ciudad_id, c.nombre, c.region_id, r.nombre AS region, p.nombre AS pais, c.saad_codigo, c.saad_descripcion,
                (SELECT count(*) FROM pos.comuna m WHERE m.ciudad_id = c.ciudad_id) AS comunas,
                (SELECT count(*) FROM pos.proveedor x WHERE x.ciudad_id = c.ciudad_id) AS proveedores,
                count(*) OVER() AS total
@@ -109,6 +122,7 @@ export class PostgresCiudadRepository implements CiudadRepository {
         region: s(r.region),
         pais: s(r.pais),
         saad: s(r.saad_codigo),
+        saadDescripcion: s(r.saad_descripcion),
         comunas: Number(r.comunas),
         proveedores: Number(r.proveedores),
       })),

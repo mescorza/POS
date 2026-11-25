@@ -10,13 +10,14 @@ import { CiudadHttpGateway, CiudadSearchResult } from "../../infrastructure/Ciud
 
 /**
  * Administra Direcciones > Mantenedor de Ciudades (pos.ciudad).
- * Consulta (lista paginada + búsqueda por nombre, código, SAAD, región o país)
- * y alta.
+ * Consulta (lista paginada + búsqueda por nombre, código, SAAD, región o país),
+ * alta y edición.
  * Teclas: ↑↓ mueve, AvPág/RePág pagina, Inicio/Fin salta, F2 busca,
- * F3 nuevo, Esc/F9 vuelve. En el formulario de alta: Enter avanza al campo
+ * F3 nuevo, F4 editar, Esc/F9 vuelve. En el formulario: Enter avanza al campo
  * siguiente (en Región abre el pop-up de búsqueda; en el último graba), F5
- * graba, Esc cancela. El código lo genera la base. Edición y baja vendrán en
- * etapas siguientes.
+ * graba, Esc cancela. El código lo genera la base y no se cambia. La región
+ * sólo se puede cambiar si la ciudad no tiene comunas ni proveedores (lo
+ * valida el servidor). La baja vendrá en una etapa siguiente.
  */
 export interface CiudadMaintenancePageProps {
   onBack: () => void;
@@ -53,8 +54,13 @@ export function CiudadMaintenancePage({ onBack }: CiudadMaintenancePageProps) {
   const [appliedQuery, setAppliedQuery] = React.useState("");
 
   // Alta: formulario en la misma ventana.
+  // `creating` = formulario abierto (alta o edición); `editingId` distingue la edición.
   const [creating, setCreating] = React.useState(false);
+  const [editingId, setEditingId] = React.useState<number | null>(null);
   const [draft, setDraft] = React.useState<Draft>(EMPTY);
+  const original = React.useRef<Draft>(EMPTY);
+  // Tras editar se recarga la lista y se vuelve a seleccionar esa ciudad.
+  const keepId = React.useRef<number | null>(null);
   const [saving, setSaving] = React.useState(false);
   const [confirmingDiscard, setConfirmingDiscard] = React.useState(false);
   const [lookupOpen, setLookupOpen] = React.useState(false);
@@ -88,7 +94,9 @@ export function CiudadMaintenancePage({ onBack }: CiudadMaintenancePageProps) {
         if (cancelled) return;
         setResult(r);
         const last = Math.max(r.items.length - 1, 0);
-        setSelectedIndex(pendingSelect.current === "last" ? last : 0);
+        const keep = keepId.current !== null ? r.items.findIndex((x) => x.id === keepId.current) : -1;
+        keepId.current = null;
+        setSelectedIndex(keep >= 0 ? keep : pendingSelect.current === "last" ? last : 0);
         pendingSelect.current = null;
       })
       .catch((e) => {
@@ -109,9 +117,29 @@ export function CiudadMaintenancePage({ onBack }: CiudadMaintenancePageProps) {
 
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => setDraft((d) => ({ ...d, [key]: value }));
 
-  const dirty = JSON.stringify(draft) !== JSON.stringify(EMPTY);
+  const dirty = JSON.stringify(draft) !== JSON.stringify(original.current);
+
+  const startEdit = () => {
+    const c = items[selectedIndex];
+    if (!c) return;
+    const d: Draft = {
+      regionId: c.regionId,
+      region: c.region,
+      nombre: c.nombre,
+      saad: c.saad,
+      saadDescripcion: c.saadDescripcion,
+    };
+    original.current = d;
+    setDraft(d);
+    setEditingId(c.id);
+    setNote(null);
+    setConfirmingDiscard(false);
+    setCreating(true);
+  };
 
   const startCreate = () => {
+    original.current = EMPTY;
+    setEditingId(null);
     setDraft(EMPTY);
     setNote(null);
     setConfirmingDiscard(false);
@@ -121,32 +149,43 @@ export function CiudadMaintenancePage({ onBack }: CiudadMaintenancePageProps) {
   const cancelCreate = () => {
     setConfirmingDiscard(false);
     setCreating(false);
+    setEditingId(null);
     setDraft(EMPTY);
     setTimeout(() => bodyRef.current?.focus(), 0);
   };
 
   const save = async () => {
     if (saving) return;
-    const title = "No se pudo crear la ciudad";
+    const editing = editingId !== null;
+    const title = editing ? "No se pudo guardar la ciudad" : "No se pudo crear la ciudad";
     if (draft.regionId === null) {
       setFormError({ title, message: "Región es obligatoria. Elíjala con Enter o F2." });
       return;
     }
     setSaving(true);
     try {
-      const creada = await gateway.create({
+      const input = {
         nombre: draft.nombre,
         regionId: draft.regionId,
         saad: draft.saad,
         saadDescripcion: draft.saadDescripcion,
-      });
+      };
+      if (editing) {
+        const guardada = await gateway.update(editingId, input);
+        setNote(`Ciudad grabada: ${guardada.id} - ${guardada.nombre} (${guardada.region}).`);
+        // Se queda en la misma página y filtro; sólo se recarga y se reselecciona.
+        keepId.current = guardada.id;
+      } else {
+        const creada = await gateway.create(input);
+        setNote(`Ciudad creada: ${creada.id} - ${creada.nombre} (${creada.region}).`);
+        // La nueva debe verse en la lista: se filtra por su nombre.
+        setSearchQuery(creada.nombre);
+        setAppliedQuery(creada.nombre);
+        setPage(1);
+      }
       setCreating(false);
+      setEditingId(null);
       setDraft(EMPTY);
-      setNote(`Ciudad creada: ${creada.id} - ${creada.nombre} (${creada.region}).`);
-      // La nueva debe verse en la lista: se filtra por su nombre.
-      setSearchQuery(creada.nombre);
-      setAppliedQuery(creada.nombre);
-      setPage(1);
       setReloadKey((k) => k + 1);
       setTimeout(() => bodyRef.current?.focus(), 0);
     } catch (e) {
@@ -242,6 +281,10 @@ export function CiudadMaintenancePage({ onBack }: CiudadMaintenancePageProps) {
         event.preventDefault();
         startCreate();
         return;
+      case "F4":
+        event.preventDefault();
+        startEdit();
+        return;
       case "ArrowDown":
         event.preventDefault();
         if (selectedIndex < items.length - 1) setSelectedIndex(selectedIndex + 1);
@@ -292,8 +335,15 @@ export function CiudadMaintenancePage({ onBack }: CiudadMaintenancePageProps) {
 
         {creating && (
           <div ref={formRef} style={{ marginBottom: 12 }}>
-            <p style={{ margin: "0 0 8px", color: "var(--pos-fg-highlight)" }}>NUEVA CIUDAD</p>
-            <PosField label="Código" value="(automático)" onChange={() => undefined} readOnly />
+            <p style={{ margin: "0 0 8px", color: "var(--pos-fg-highlight)" }}>
+              {editingId !== null ? "EDITAR CIUDAD" : "NUEVA CIUDAD"}
+            </p>
+            <PosField
+              label="Código"
+              value={editingId !== null ? String(editingId) : "(automático)"}
+              onChange={() => undefined}
+              readOnly
+            />
             <PosField
               label="Región"
               value={draft.regionId === null ? "" : `${draft.regionId} - ${draft.region}`}
@@ -316,7 +366,7 @@ export function CiudadMaintenancePage({ onBack }: CiudadMaintenancePageProps) {
               SAAD descripción vacía = se usa el nombre. Región: Enter o F2 para buscar.
             </p>
             {confirmingDiscard && (
-              <p style={{ color: "var(--pos-fg-highlight)" }}>¿Descartar la ciudad nueva? Enter = Sí, Esc = No</p>
+              <p style={{ color: "var(--pos-fg-highlight)" }}>¿Descartar los cambios? Enter = Sí, Esc = No</p>
             )}
             {saving && <p>Grabando...</p>}
           </div>
@@ -390,6 +440,7 @@ export function CiudadMaintenancePage({ onBack }: CiudadMaintenancePageProps) {
             : [
                 { key: "F2", label: searching ? "Enter=Confirma Esc=Cancela" : "Buscar" },
                 { key: "F3", label: "Nuevo" },
+                { key: "F4", label: "Editar" },
                 { key: "F9", label: "Volver" },
               ]),
         ]}

@@ -3,18 +3,43 @@ import * as dotenv from "dotenv";
 dotenv.config();
 
 import { CiudadCreate } from "../application/CiudadCreate";
+import { CiudadEdit } from "../application/CiudadEdit";
 import { CiudadSearch } from "../application/CiudadSearch";
-import { CiudadDuplicadaError, CiudadInvalidError } from "../domain/CiudadRepository";
+import { CiudadDuplicadaError, CiudadInvalidError, CiudadNotFoundError } from "../domain/CiudadRepository";
 import { PostgresCiudadRepository } from "./PostgresCiudadRepository";
 
 const databaseUrl = process.env.DATABASE_URL;
 const repository = databaseUrl ? new PostgresCiudadRepository(databaseUrl) : null;
 const search = repository ? new CiudadSearch(repository) : null;
 const create = repository ? new CiudadCreate(repository) : null;
+const edit = repository ? new CiudadEdit(repository) : null;
 
 const str = (v: unknown) => (typeof v === "string" ? v : v === undefined || v === null ? "" : String(v));
 
 export class ExpressCiudadController {
+  /** PUT /ciudades/:id  { nombre, regionId, saad, saadDescripcion } -> 200 con la ciudad guardada. */
+  async edit(req: Request, res: Response, next: NextFunction) {
+    try {
+      if (!edit) return res.status(503).json({ message: "DATABASE_URL no configurado" });
+      const id = Number(req.params.id);
+      if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ message: "id inválido" });
+      const b = req.body ?? {};
+      return res.json(
+        await edit.run(id, {
+          nombre: str(b.nombre),
+          regionId: Number(b.regionId),
+          saad: str(b.saad),
+          saadDescripcion: str(b.saadDescripcion),
+        })
+      );
+    } catch (error) {
+      if (error instanceof CiudadDuplicadaError) return res.status(409).json({ message: error.message });
+      if (error instanceof CiudadNotFoundError) return res.status(404).json({ message: error.message });
+      if (error instanceof CiudadInvalidError) return res.status(400).json({ message: error.message });
+      next(error);
+    }
+  }
+
   /** POST /ciudades  { nombre, regionId, saad, saadDescripcion } -> 201 con la ciudad creada. */
   async create(req: Request, res: Response, next: NextFunction) {
     try {

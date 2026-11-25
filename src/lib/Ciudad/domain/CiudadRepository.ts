@@ -13,6 +13,7 @@ export interface CiudadListItem {
   pais: string;
   /** Código SAAD (saad_codigo). */
   saad: string;
+  saadDescripcion: string;
   /** Comunas de pos.comuna que cuelgan de esta ciudad. */
   comunas: number;
   /** Proveedores de pos.proveedor que usan esta ciudad. */
@@ -39,8 +40,13 @@ export interface CiudadRepository {
   getById(id: number): Promise<CiudadListItem | null>;
   /** Inserta la ciudad; ciudad_id lo asigna la identity. externalid queda NULL. Devuelve el id. */
   create(values: CiudadCreateValues): Promise<number>;
-  /** Ciudad de esa región con ese nombre (sin distinguir mayúsculas ni espacios de borde), si existe. */
-  buscarPorNombreEnRegion(nombre: string, regionId: number): Promise<CiudadListItem | null>;
+  /** Cambia nombre, región, SAAD código y SAAD descripción. No toca ciudad_id ni externalid. */
+  update(id: number, values: CiudadCreateValues): Promise<void>;
+  /**
+   * Ciudad de esa región con ese nombre (sin distinguir mayúsculas ni espacios de
+   * borde), si existe. `excluirId` ignora esa ciudad (la edición no choca consigo misma).
+   */
+  buscarPorNombreEnRegion(nombre: string, regionId: number, excluirId?: number): Promise<CiudadListItem | null>;
   regionExiste(regionId: number): Promise<boolean>;
 }
 

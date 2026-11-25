@@ -8,6 +8,7 @@ export interface CiudadListItem {
   region: string;
   pais: string;
   saad: string;
+  saadDescripcion: string;
   comunas: number;
   proveedores: number;
 }
@@ -28,6 +29,11 @@ export interface CiudadCreateInput {
 }
 
 export class CiudadHttpGateway {
+  /** Cambia los datos de la ciudad (el código no cambia); devuelve el registro guardado. */
+  update(id: number, input: CiudadCreateInput): Promise<CiudadListItem> {
+    return httpJson("PUT", `/ciudades/${id}`, input);
+  }
+
   /** Devuelve la ciudad creada, con el código que asignó la base. */
   create(input: CiudadCreateInput): Promise<CiudadListItem> {
     return httpJson("POST", "/ciudades", input);
