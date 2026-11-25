@@ -82,7 +82,7 @@ const MAIN_MENU_OPTIONS: MainMenuOption[] = [
             action: "dir-ciudad",
             label: "Mantenedor de Ciudades",
             boundedContext: "Direcciones",
-            entryUseCase: "Pendiente",
+            entryUseCase: "CiudadSearch (solo consulta)",
           },
           {
             code: "05",
