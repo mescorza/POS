@@ -10,9 +10,9 @@ import { ContinenteHttpGateway, ContinenteSearchResult } from "../../infrastruct
  * Administra Direcciones > Mantenedor de Continentes (pos.continente).
  * Consulta (lista paginada + búsqueda por código o nombre) y alta.
  * Teclas: ↑↓ mueve, AvPág/RePág pagina, Inicio/Fin salta, F2 busca,
- * F3 nuevo, Esc/F9 vuelve. En el alta: Enter/F5 graba, Esc cancela.
- * El código lo asigna el sistema; el nombre no puede repetirse.
- * Edición y baja vendrán en etapas siguientes.
+ * F3 nuevo, F4 editar, Esc/F9 vuelve. En el formulario: Enter/F5 graba, Esc
+ * cancela. El código lo asigna el sistema y no se cambia; el nombre no puede
+ * repetirse. La baja vendrá en una etapa siguiente.
  */
 export interface ContinenteMaintenancePageProps {
   onBack: () => void;
@@ -37,8 +37,11 @@ export function ContinenteMaintenancePage({ onBack }: ContinenteMaintenancePageP
   const [appliedQuery, setAppliedQuery] = React.useState("");
 
   // Alta: formulario en la misma ventana, con el nombre del nuevo continente.
+  // `creating` indica formulario abierto (alta o edición); `editingId` distingue la edición.
   const [creating, setCreating] = React.useState(false);
+  const [editingId, setEditingId] = React.useState<number | null>(null);
   const [newName, setNewName] = React.useState("");
+  const originalName = React.useRef("");
   const [saving, setSaving] = React.useState(false);
   const [confirmingDiscard, setConfirmingDiscard] = React.useState(false);
   const [note, setNote] = React.useState<string | null>(null);
@@ -86,7 +89,20 @@ export function ContinenteMaintenancePage({ onBack }: ContinenteMaintenancePageP
   const total = result?.total ?? 0;
   const totalPages = Math.max(Math.ceil(total / PAGE_SIZE), 1);
 
+  const startEdit = () => {
+    const c = items[selectedIndex];
+    if (!c) return;
+    originalName.current = c.nombre;
+    setNewName(c.nombre);
+    setEditingId(c.id);
+    setNote(null);
+    setConfirmingDiscard(false);
+    setCreating(true);
+  };
+
   const startCreate = () => {
+    originalName.current = "";
+    setEditingId(null);
     setNewName("");
     setNote(null);
     setConfirmingDiscard(false);
@@ -96,6 +112,7 @@ export function ContinenteMaintenancePage({ onBack }: ContinenteMaintenancePageP
   const cancelCreate = () => {
     setConfirmingDiscard(false);
     setCreating(false);
+    setEditingId(null);
     setNewName("");
     setTimeout(() => bodyRef.current?.focus(), 0);
   };
@@ -103,21 +120,30 @@ export function ContinenteMaintenancePage({ onBack }: ContinenteMaintenancePageP
   const save = async () => {
     if (saving) return;
     setSaving(true);
+    const editing = editingId !== null;
     try {
-      const creado = await gateway.create(newName);
+      if (editing) {
+        const guardado = await gateway.update(editingId, newName);
+        setNote(`Continente grabado: ${guardado.id} - ${guardado.nombre}.`);
+        // Se queda en la misma página y filtro; sólo se recarga y se reselecciona.
+        keepId.current = guardado.id;
+      } else {
+        const creado = await gateway.create(newName);
+        setNote(`Continente creado: ${creado.id} - ${creado.nombre}.`);
+        // El nuevo debe verse en la lista: se limpia el filtro y se va a su página.
+        keepId.current = creado.id;
+        setSearchQuery("");
+        setAppliedQuery("");
+        setPage(Math.max(Math.ceil((total + 1) / PAGE_SIZE), 1));
+      }
       setCreating(false);
+      setEditingId(null);
       setNewName("");
-      setNote(`Continente creado: ${creado.id} - ${creado.nombre}.`);
-      // El nuevo debe verse en la lista: se limpia el filtro y se va a su página.
-      keepId.current = creado.id;
-      setSearchQuery("");
-      setAppliedQuery("");
-      setPage(Math.max(Math.ceil((total + 1) / PAGE_SIZE), 1));
       setReloadKey((k) => k + 1);
       setTimeout(() => bodyRef.current?.focus(), 0);
     } catch (e) {
       setFormError({
-        title: "No se pudo crear el continente",
+        title: editing ? "No se pudo guardar el continente" : "No se pudo crear el continente",
         message: e instanceof Error ? e.message : String(e),
       });
     } finally {
@@ -142,7 +168,7 @@ export function ContinenteMaintenancePage({ onBack }: ContinenteMaintenancePageP
         void save();
       } else if (event.key === "Escape") {
         event.preventDefault();
-        if (newName.trim()) setConfirmingDiscard(true);
+        if (newName.trim() !== originalName.current.trim()) setConfirmingDiscard(true);
         else cancelCreate();
       }
       return;
@@ -179,6 +205,10 @@ export function ContinenteMaintenancePage({ onBack }: ContinenteMaintenancePageP
       case "F3":
         event.preventDefault();
         startCreate();
+        return;
+      case "F4":
+        event.preventDefault();
+        startEdit();
         return;
       case "ArrowDown":
         event.preventDefault();
@@ -230,8 +260,15 @@ export function ContinenteMaintenancePage({ onBack }: ContinenteMaintenancePageP
 
         {creating && (
           <div style={{ marginBottom: 12 }}>
-            <p style={{ margin: "0 0 8px", color: "var(--pos-fg-highlight)" }}>NUEVO CONTINENTE</p>
-            <PosField label="Código" value="(automático)" onChange={() => undefined} readOnly />
+            <p style={{ margin: "0 0 8px", color: "var(--pos-fg-highlight)" }}>
+              {editingId !== null ? "EDITAR CONTINENTE" : "NUEVO CONTINENTE"}
+            </p>
+            <PosField
+              label="Código"
+              value={editingId !== null ? String(editingId) : "(automático)"}
+              onChange={() => undefined}
+              readOnly
+            />
             <PosField
               label="Nombre"
               value={newName}
@@ -239,7 +276,7 @@ export function ContinenteMaintenancePage({ onBack }: ContinenteMaintenancePageP
               autoFocus
             />
             {confirmingDiscard && (
-              <p style={{ color: "var(--pos-fg-highlight)" }}>¿Descartar el continente nuevo? Enter = Sí, Esc = No</p>
+              <p style={{ color: "var(--pos-fg-highlight)" }}>¿Descartar los cambios? Enter = Sí, Esc = No</p>
             )}
             {saving && <p>Grabando...</p>}
           </div>
@@ -307,6 +344,7 @@ export function ContinenteMaintenancePage({ onBack }: ContinenteMaintenancePageP
             : [
                 { key: "F2", label: searching ? "Enter=Confirma Esc=Cancela" : "Buscar" },
                 { key: "F3", label: "Nuevo" },
+                { key: "F4", label: "Editar" },
                 { key: "F9", label: "Volver" },
               ]),
         ]}

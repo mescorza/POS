@@ -26,12 +26,25 @@ export interface ContinenteRepository {
    * el mismo código. Devuelve el registro creado.
    */
   create(nombre: string): Promise<ContinenteListItem>;
-  /** Continente con ese nombre (sin distinguir mayúsculas ni espacios de borde), si existe. */
-  buscarPorNombre(nombre: string): Promise<ContinenteListItem | null>;
+  /**
+   * Continente con ese nombre (sin distinguir mayúsculas ni espacios de borde),
+   * si existe. `excluirId` ignora ese continente (para la edición: no choca
+   * consigo mismo).
+   */
+  buscarPorNombre(nombre: string, excluirId?: number): Promise<ContinenteListItem | null>;
+  getById(id: number): Promise<ContinenteListItem | null>;
+  update(id: number, nombre: string): Promise<void>;
 }
 
 /** Datos inválidos (nombre vacío o demasiado largo). Responde 400. */
 export class ContinenteInvalidError extends Error {}
+
+/** No existe el continente pedido. Responde 404. */
+export class ContinenteNotFoundError extends Error {
+  constructor(id: number) {
+    super(`Continente ${id} no encontrado`);
+  }
+}
 
 /** El nombre ya existe en otro continente. Responde 409. */
 export class ContinenteDuplicadoError extends ContinenteInvalidError {}

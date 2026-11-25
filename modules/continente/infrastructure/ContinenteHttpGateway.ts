@@ -15,6 +15,11 @@ export interface ContinenteSearchResult {
 }
 
 export class ContinenteHttpGateway {
+  /** Cambia el nombre del continente; devuelve el registro guardado. */
+  update(id: number, nombre: string): Promise<ContinenteListItem> {
+    return httpJson("PUT", `/continentes/${id}`, { nombre });
+  }
+
   /** Devuelve el continente creado, con el código que asignó el sistema. */
   create(nombre: string): Promise<ContinenteListItem> {
     return httpJson("POST", "/continentes", { nombre });

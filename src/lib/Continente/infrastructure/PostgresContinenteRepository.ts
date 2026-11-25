@@ -45,15 +45,36 @@ export class PostgresContinenteRepository implements ContinenteRepository {
     };
   }
 
-  async buscarPorNombre(nombre: string): Promise<ContinenteListItem | null> {
+  async buscarPorNombre(nombre: string, excluirId?: number): Promise<ContinenteListItem | null> {
     const r = await this.client.query(
       `SELECT continente_id, nombre FROM pos.continente
        WHERE lower(btrim(nombre)) = lower(btrim($1)) AND continente_id IS NOT NULL
+         AND ($2::int IS NULL OR continente_id <> $2)
        ORDER BY continente_id LIMIT 1`,
-      [nombre]
+      [nombre, excluirId ?? null]
     );
     if (!r.rows.length) return null;
     return { id: Number(r.rows[0].continente_id), nombre: String(r.rows[0].nombre).trim(), paises: 0 };
+  }
+
+  async getById(id: number): Promise<ContinenteListItem | null> {
+    const r = await this.client.query(
+      `SELECT c.continente_id, c.nombre,
+              (SELECT count(*) FROM pos.pais p WHERE p.continente_id = c.continente_id) AS paises
+       FROM pos.continente c WHERE c.continente_id = $1 ORDER BY c.continente_id LIMIT 1`,
+      [id]
+    );
+    if (!r.rows.length) return null;
+    return {
+      id: Number(r.rows[0].continente_id),
+      nombre: String(r.rows[0].nombre ?? "").trim(),
+      paises: Number(r.rows[0].paises),
+    };
+  }
+
+  /** Cambia sólo el nombre (única columna editable); el código no se toca. */
+  async update(id: number, nombre: string): Promise<void> {
+    await this.client.query("UPDATE pos.continente SET nombre = $1 WHERE continente_id = $2", [nombre, id]);
   }
 
   async create(nombre: string): Promise<ContinenteListItem> {
