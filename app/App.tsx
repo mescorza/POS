@@ -8,9 +8,10 @@ import { InformesPage } from "../modules/informes/ui/react/InformesPage";
 
 import { ContinenteMaintenancePage } from "../modules/continente/ui/react/ContinenteMaintenancePage";
 import { PaisMaintenancePage } from "../modules/pais/ui/react/PaisMaintenancePage";
+import { RegionMaintenancePage } from "../modules/region/ui/react/RegionMaintenancePage";
 import { ProveedorMaintenancePage } from "../modules/proveedor/ui/react/ProveedorMaintenancePage";
 
-type Screen = "menu" | "users" | "employees" | "informes" | "suppliers" | "continentes" | "paises";
+type Screen = "menu" | "users" | "employees" | "informes" | "suppliers" | "continentes" | "paises" | "regiones";
 
 // Composition root del shell POS. El formulario inicial sólo entrega la
 // opción confirmada (regla 1A.2); este componente decide qué pantalla
@@ -55,6 +56,10 @@ export function App() {
     return <PaisMaintenancePage onBack={() => setScreen("menu")} />;
   }
 
+  if (screen === "regiones") {
+    return <RegionMaintenancePage onBack={() => setScreen("menu")} />;
+  }
+
   return (
     <MainMenuPage
       user={session.username}
@@ -69,6 +74,8 @@ export function App() {
           setScreen("continentes");
         } else if (option.action === "dir-pais") {
           setScreen("paises");
+        } else if (option.action === "dir-region") {
+          setScreen("regiones");
         } else if (option.action === "signout") {
           setSession(null);
         } else if (option.action === "informes") {

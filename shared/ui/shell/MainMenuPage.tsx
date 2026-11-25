@@ -75,7 +75,7 @@ const MAIN_MENU_OPTIONS: MainMenuOption[] = [
             action: "dir-region",
             label: "Mantenedor de Regiones",
             boundedContext: "Direcciones",
-            entryUseCase: "Pendiente",
+            entryUseCase: "RegionSearch (solo consulta)",
           },
           {
             code: "04",
