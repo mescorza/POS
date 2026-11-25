@@ -6,7 +6,7 @@ const s = (v: unknown): string => (v === null || v === undefined ? "" : String(v
 /** SELECT común de la lista y del detalle: continente + conteos de uso. */
 const SELECT_PAIS = `
   SELECT p.pais_id, p.nombre, p.continente_id, c.nombre AS continente,
-         p.codigo_iso2, p.saad_codigo,
+         p.codigo_iso2, p.saad_codigo, p.saad_descripcion,
          (SELECT count(*) FROM pos.region r WHERE r.pais_id = p.pais_id) AS regiones,
          (SELECT count(*) FROM pos.proveedor v WHERE v.pais_id = p.pais_id) AS proveedores`;
 
@@ -18,6 +18,7 @@ function toItem(r: Record<string, unknown>): PaisListItem {
     continente: s(r.continente),
     iso2: s(r.codigo_iso2),
     saad: s(r.saad_codigo),
+    saadDescripcion: s(r.saad_descripcion),
     regiones: Number(r.regiones),
     proveedores: Number(r.proveedores),
   };
@@ -74,28 +75,40 @@ export class PostgresPaisRepository implements PaisRepository {
     return r.rows.length ? toItem(r.rows[0]) : null;
   }
 
-  async buscarPorNombre(nombre: string): Promise<PaisListItem | null> {
+  async buscarPorNombre(nombre: string, excluirId?: number): Promise<PaisListItem | null> {
     const r = await this.client.query(
       `${SELECT_PAIS}
        FROM pos.pais p
        LEFT JOIN pos.continente c ON c.continente_id = p.continente_id
        WHERE lower(btrim(p.nombre)) = lower(btrim($1))
+         AND ($2::int IS NULL OR p.pais_id <> $2)
        ORDER BY p.pais_id LIMIT 1`,
-      [nombre]
+      [nombre, excluirId ?? null]
     );
     return r.rows.length ? toItem(r.rows[0]) : null;
   }
 
-  async buscarPorIso2(iso2: string): Promise<PaisListItem | null> {
+  async buscarPorIso2(iso2: string, excluirId?: number): Promise<PaisListItem | null> {
     const r = await this.client.query(
       `${SELECT_PAIS}
        FROM pos.pais p
        LEFT JOIN pos.continente c ON c.continente_id = p.continente_id
        WHERE upper(btrim(p.codigo_iso2)) = upper(btrim($1))
+         AND ($2::int IS NULL OR p.pais_id <> $2)
        ORDER BY p.pais_id LIMIT 1`,
-      [iso2]
+      [iso2, excluirId ?? null]
     );
     return r.rows.length ? toItem(r.rows[0]) : null;
+  }
+
+  /** Sólo las 5 columnas editables; pais_id y externalid no se tocan. */
+  async update(id: number, v: PaisCreateValues): Promise<void> {
+    await this.client.query(
+      `UPDATE pos.pais
+          SET nombre = $2, continente_id = $3, saad_codigo = $4, saad_descripcion = $5, codigo_iso2 = $6
+        WHERE pais_id = $1`,
+      [id, v.nombre, v.continenteId, v.saad, v.saadDescripcion, v.iso2]
+    );
   }
 
   async continenteExiste(continenteId: number): Promise<boolean> {

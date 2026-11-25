@@ -8,6 +8,7 @@ export interface PaisListItem {
   continente: string;
   iso2: string;
   saad: string;
+  saadDescripcion: string;
   regiones: number;
   proveedores: number;
 }
@@ -30,6 +31,11 @@ export interface PaisCreateInput {
 }
 
 export class PaisHttpGateway {
+  /** Cambia los datos del país (el código no cambia); devuelve el registro guardado. */
+  update(id: number, input: PaisCreateInput): Promise<PaisListItem> {
+    return httpJson("PUT", `/paises/${id}`, input);
+  }
+
   /** Devuelve el país creado, con el código que asignó el sistema. */
   create(input: PaisCreateInput): Promise<PaisListItem> {
     return httpJson("POST", "/paises", input);

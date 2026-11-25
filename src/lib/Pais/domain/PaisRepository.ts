@@ -12,6 +12,8 @@ export interface PaisListItem {
   iso2: string;
   /** Código SAAD de 3 letras (saad_codigo). */
   saad: string;
+  /** Descripción SAAD (saad_descripcion). */
+  saadDescripcion: string;
   /** Regiones de pos.region que cuelgan de este país. */
   regiones: number;
   /** Proveedores de pos.proveedor que usan este país. */
@@ -25,7 +27,7 @@ export interface PaisSearchResult {
   pageSize: number;
 }
 
-/** Datos ya normalizados que se insertan en un alta (pais_id lo asigna el repositorio). */
+/** Datos ya normalizados que se guardan en un alta o edición (pais_id lo asigna/conserva el repositorio). */
 export interface PaisCreateValues {
   nombre: string;
   continenteId: number;
@@ -44,10 +46,18 @@ export interface PaisRepository {
    * mismo código. Devuelve el id asignado.
    */
   create(values: PaisCreateValues): Promise<number>;
-  /** País con ese nombre (sin distinguir mayúsculas ni espacios de borde), si existe. */
-  buscarPorNombre(nombre: string): Promise<PaisListItem | null>;
-  /** País con ese código ISO2 (sin distinguir mayúsculas), si existe. */
-  buscarPorIso2(iso2: string): Promise<PaisListItem | null>;
+  /**
+   * Cambia nombre, continente, ISO2, SAAD código y SAAD descripción del país.
+   * No toca el código ni externalid.
+   */
+  update(id: number, values: PaisCreateValues): Promise<void>;
+  /**
+   * País con ese nombre (sin distinguir mayúsculas ni espacios de borde), si
+   * existe. `excluirId` ignora ese país (para la edición: no choca consigo mismo).
+   */
+  buscarPorNombre(nombre: string, excluirId?: number): Promise<PaisListItem | null>;
+  /** País con ese código ISO2 (sin distinguir mayúsculas), si existe. `excluirId` igual que arriba. */
+  buscarPorIso2(iso2: string, excluirId?: number): Promise<PaisListItem | null>;
   continenteExiste(continenteId: number): Promise<boolean>;
 }
 
