@@ -32,7 +32,7 @@ export interface RegionSearchResult {
   pageSize: number;
 }
 
-/** Datos ya normalizados que se guardan en un alta (region_id lo genera la base). */
+/** Datos ya normalizados que se guardan en un alta o edición (region_id lo genera/conserva la base). */
 export interface RegionCreateValues {
   nombre: string;
   paisId: number;
@@ -48,8 +48,17 @@ export interface RegionRepository {
    * calcularlo ni bloquear). externalid queda NULL. Devuelve el id asignado.
    */
   create(values: RegionCreateValues): Promise<number>;
-  /** Región de ese país con ese nombre (sin distinguir mayúsculas ni espacios de borde), si existe. */
-  buscarPorNombreEnPais(nombre: string, paisId: number): Promise<RegionListItem | null>;
+  /**
+   * Cambia nombre, país, SAAD código y SAAD descripción. No toca region_id ni
+   * externalid.
+   */
+  update(id: number, values: RegionCreateValues): Promise<void>;
+  /**
+   * Región de ese país con ese nombre (sin distinguir mayúsculas ni espacios de
+   * borde), si existe. `excluirId` ignora esa región (para la edición: no
+   * choca consigo misma).
+   */
+  buscarPorNombreEnPais(nombre: string, paisId: number, excluirId?: number): Promise<RegionListItem | null>;
   paisExiste(paisId: number): Promise<boolean>;
 }
 

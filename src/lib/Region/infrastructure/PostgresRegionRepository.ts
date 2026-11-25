@@ -80,16 +80,27 @@ export class PostgresRegionRepository implements RegionRepository {
     return r.rows.length ? toItem(r.rows[0]) : null;
   }
 
-  async buscarPorNombreEnPais(nombre: string, paisId: number): Promise<RegionListItem | null> {
+  async buscarPorNombreEnPais(nombre: string, paisId: number, excluirId?: number): Promise<RegionListItem | null> {
     const r = await this.client.query(
       `${SELECT_REGION}
        FROM pos.region r
        LEFT JOIN pos.pais p ON p.pais_id = r.pais_id
        WHERE r.pais_id = $2 AND lower(btrim(r.nombre)) = lower(btrim($1))
+         AND ($3::int IS NULL OR r.region_id <> $3)
        ORDER BY r.region_id LIMIT 1`,
-      [nombre, paisId]
+      [nombre, paisId, excluirId ?? null]
     );
     return r.rows.length ? toItem(r.rows[0]) : null;
+  }
+
+  /** Sólo las 4 columnas editables; region_id y externalid no se tocan. */
+  async update(id: number, v: RegionCreateValues): Promise<void> {
+    await this.client.query(
+      `UPDATE pos.region
+          SET nombre = $2, pais_id = $3, saad_codigo = $4, saad_descripcion = $5
+        WHERE region_id = $1`,
+      [id, v.nombre, v.paisId, v.saad, v.saadDescripcion]
+    );
   }
 
   async paisExiste(paisId: number): Promise<boolean> {

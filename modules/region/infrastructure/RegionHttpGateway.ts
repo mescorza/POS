@@ -30,6 +30,11 @@ export interface RegionCreateInput {
 }
 
 export class RegionHttpGateway {
+  /** Cambia los datos de la región (el código no cambia); devuelve el registro guardado. */
+  update(id: number, input: RegionCreateInput): Promise<RegionListItem> {
+    return httpJson("PUT", `/regiones/${id}`, input);
+  }
+
   /** Devuelve la región creada, con el código que asignó la base. */
   create(input: RegionCreateInput): Promise<RegionListItem> {
     return httpJson("POST", "/regiones", input);
