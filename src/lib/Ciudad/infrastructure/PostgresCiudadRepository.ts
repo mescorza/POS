@@ -1,7 +1,28 @@
 import { Pool } from "pg";
-import { CiudadRepository, CiudadSearchResult } from "../domain/CiudadRepository";
+import {
+  CiudadCreateValues,
+  CiudadListItem,
+  CiudadRepository,
+  CiudadSearchResult,
+} from "../domain/CiudadRepository";
 
 const s = (v: unknown): string => (v === null || v === undefined ? "" : String(v).trim());
+
+const SELECT_CIUDAD = `
+  SELECT c.ciudad_id, c.nombre, c.region_id, r.nombre AS region, p.nombre AS pais, c.saad_codigo,
+         (SELECT count(*) FROM pos.comuna m WHERE m.ciudad_id = c.ciudad_id) AS comunas,
+         (SELECT count(*) FROM pos.proveedor x WHERE x.ciudad_id = c.ciudad_id) AS proveedores`;
+
+const toItem = (r: any): CiudadListItem => ({
+  id: Number(r.ciudad_id),
+  nombre: s(r.nombre),
+  regionId: Number(r.region_id),
+  region: s(r.region),
+  pais: s(r.pais),
+  saad: s(r.saad_codigo),
+  comunas: Number(r.comunas),
+  proveedores: Number(r.proveedores),
+});
 
 /** Consulta sobre pos.ciudad (esquema `pos`). */
 export class PostgresCiudadRepository implements CiudadRepository {
@@ -9,6 +30,47 @@ export class PostgresCiudadRepository implements CiudadRepository {
 
   constructor(databaseUrl: string) {
     this.client = new Pool({ connectionString: databaseUrl });
+  }
+
+  async getById(id: number): Promise<CiudadListItem | null> {
+    const r = await this.client.query(
+      `${SELECT_CIUDAD}
+       FROM pos.ciudad c
+       LEFT JOIN pos.region r ON r.region_id = c.region_id
+       LEFT JOIN pos.pais p ON p.pais_id = r.pais_id
+       WHERE c.ciudad_id = $1`,
+      [id]
+    );
+    return r.rows.length ? toItem(r.rows[0]) : null;
+  }
+
+  async buscarPorNombreEnRegion(nombre: string, regionId: number): Promise<CiudadListItem | null> {
+    const r = await this.client.query(
+      `${SELECT_CIUDAD}
+       FROM pos.ciudad c
+       LEFT JOIN pos.region r ON r.region_id = c.region_id
+       LEFT JOIN pos.pais p ON p.pais_id = r.pais_id
+       WHERE c.region_id = $2 AND lower(btrim(c.nombre)) = lower(btrim($1))
+       ORDER BY c.ciudad_id LIMIT 1`,
+      [nombre, regionId]
+    );
+    return r.rows.length ? toItem(r.rows[0]) : null;
+  }
+
+  async regionExiste(regionId: number): Promise<boolean> {
+    const r = await this.client.query("SELECT 1 FROM pos.region WHERE region_id = $1 LIMIT 1", [regionId]);
+    return r.rows.length > 0;
+  }
+
+  /** ciudad_id lo genera la identity (GENERATED ALWAYS): no se informa. externalid queda NULL. */
+  async create(v: CiudadCreateValues): Promise<number> {
+    const r = await this.client.query(
+      `INSERT INTO pos.ciudad (nombre, region_id, saad_codigo, saad_descripcion, externalid)
+       VALUES ($1, $2, $3, $4, NULL)
+       RETURNING ciudad_id`,
+      [v.nombre, v.regionId, v.saad, v.saadDescripcion]
+    );
+    return Number(r.rows[0].ciudad_id);
   }
 
   async search(q: string, page: number, pageSize: number): Promise<CiudadSearchResult> {

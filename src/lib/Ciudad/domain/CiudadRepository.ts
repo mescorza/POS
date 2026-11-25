@@ -1,7 +1,7 @@
 /**
  * Maestro de ciudades (esquema `pos`, tabla pos.ciudad; PK ciudad_id, identity).
  * Cuelga de una región (region_id) y lo referencian pos.comuna y pos.proveedor
- * por ciudad_id (sin FK declarada). Etapa 1: sólo consulta.
+ * por ciudad_id (sin FK declarada).
  */
 export interface CiudadListItem {
   id: number;
@@ -26,6 +26,32 @@ export interface CiudadSearchResult {
   pageSize: number;
 }
 
+/** Datos ya normalizados que se guardan en un alta (ciudad_id lo genera la base). */
+export interface CiudadCreateValues {
+  nombre: string;
+  regionId: number;
+  saad: string;
+  saadDescripcion: string;
+}
+
 export interface CiudadRepository {
   search(q: string, page: number, pageSize: number): Promise<CiudadSearchResult>;
+  getById(id: number): Promise<CiudadListItem | null>;
+  /** Inserta la ciudad; ciudad_id lo asigna la identity. externalid queda NULL. Devuelve el id. */
+  create(values: CiudadCreateValues): Promise<number>;
+  /** Ciudad de esa región con ese nombre (sin distinguir mayúsculas ni espacios de borde), si existe. */
+  buscarPorNombreEnRegion(nombre: string, regionId: number): Promise<CiudadListItem | null>;
+  regionExiste(regionId: number): Promise<boolean>;
+}
+
+/** Datos inválidos (obligatorios vacíos, largos excedidos, región inexistente). Responde 400. */
+export class CiudadInvalidError extends Error {}
+
+/** Ya existe una ciudad con ese nombre en esa región. Responde 409. */
+export class CiudadDuplicadaError extends CiudadInvalidError {}
+
+export class CiudadNotFoundError extends Error {
+  constructor(id: number) {
+    super(`Ciudad ${id} no encontrada`);
+  }
 }
