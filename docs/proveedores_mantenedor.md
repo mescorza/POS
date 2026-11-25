@@ -240,6 +240,8 @@ Ventana modal centrada sobre el formulario, mismo marco visual terminal, con el 
 | Moneda | `pos.moneda` | `moneda_id` | `nombre` | — | 4 |
 | Cond. Pago | (sin tabla) | `codcondpago` | `condicionpago` | — | ver §12 |
 
+**Excepción: Provincia por Región.** `pos.provincia.region_id` **no** referencia `pos.region.region_id` sino `pos.region.externalid` (p. ej. las provincias con `region_id = 206` son las de Valparaíso, cuyo `externalid` es 206; 254 de las 363 provincias coinciden así y ninguna por `region_id`). Por eso el filtro del pop-up de Provincia es `provincia.region_id::text = región.externalid`, y la provincia **725 "SIN VALOR"** se ofrece siempre como comodín (igual que al mostrar el proveedor). La descripción de la provincia en el detalle usa la misma regla. Corregido en v0.5: antes el pop-up salía vacío para toda región. Las 34 regiones sin provincias por `externalid` solo ofrecen el comodín.
+
 ### 6.3 Solo buscar y seleccionar (decisión §0 #6)
 
 El pop-up **no crea ni modifica** registros. Si lo buscado no existe, muestra `Sin resultados para "xxx"` y el usuario cancela con `Esc`; el maestro se da de alta en su propia opción del menú principal (pendiente de construir). En el pop-up: escribir filtra (por descripción o código), `↑↓`/`AvPág`/`RePág`/`Inicio`/`Fin` recorren, `Enter` selecciona, `Esc` cancela.

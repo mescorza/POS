@@ -227,7 +227,8 @@ export class PostgresProveedorRepository implements ProveedorRepository {
           p.provincia_id,
           (SELECT max(x.nombre) FROM pos.provincia x
             WHERE x.provincia_id = p.provincia_id
-              AND (x.region_id = p.region_id OR x.provincia_id = 725)) AS provincia,
+              AND (x.region_id::text = (SELECT r.externalid FROM pos.region r WHERE r.region_id = p.region_id)
+                   OR x.provincia_id = 725)) AS provincia,
           p.codpostal,
           trim(coalesce(trim(p.calle), '') || ' ' || coalesce(trim(p.nrocalle), '')) AS direccion,
           p.fono1, p.fax1, p.contacto1, p.cargo1,

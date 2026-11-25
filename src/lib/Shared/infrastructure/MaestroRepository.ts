@@ -35,6 +35,11 @@ interface MaestroConfig {
   nameCol: string;
   /** Columna FK al maestro padre (jerarquía geográfica). */
   parentCol?: string;
+  /**
+   * Filtro por padre a medida, para cuando la relación NO es `parentCol = id`.
+   * Recibe el marcador del parámetro (p. ej. "$2") con el id del padre.
+   */
+  parentCond?: (param: string) => string;
   /** Filtro fijo (p. ej. sólo sucursales activas). */
   where?: string;
   orderBy: string;
@@ -60,11 +65,16 @@ const CONFIG: Record<MaestroTipo, MaestroConfig> = {
     parentCol: "comuna_id",
     orderBy: "nombre",
   },
+  // OJO: pos.provincia.region_id NO referencia pos.region.region_id sino
+  // pos.region.externalid (p. ej. las provincias con region_id 206 son las de la
+  // región cuyo externalid es 206, Valparaíso). La provincia 725 "SIN VALOR" es
+  // un comodín válido para cualquier región, igual que en el detalle del proveedor.
   provincia: {
     table: "pos.provincia",
     idCol: "provincia_id",
     nameCol: "nombre",
-    parentCol: "region_id",
+    parentCond: (p) =>
+      `(region_id::text = (SELECT r.externalid FROM pos.region r WHERE r.region_id = ${p}) OR provincia_id = 725)`,
     orderBy: "nombre",
   },
 };
@@ -92,9 +102,9 @@ export class MaestroRepository {
     const conds: string[] = [];
 
     if (c.where) conds.push(c.where);
-    if (c.parentCol && parentId !== null) {
+    if ((c.parentCol || c.parentCond) && parentId !== null) {
       values.push(parentId);
-      conds.push(`${c.parentCol} = $${values.length}`);
+      conds.push(c.parentCond ? c.parentCond(`$${values.length}`) : `${c.parentCol} = $${values.length}`);
     }
     if (q) {
       values.push(`%${q}%`);
