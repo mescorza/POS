@@ -10,9 +10,10 @@ import { ContinenteMaintenancePage } from "../modules/continente/ui/react/Contin
 import { PaisMaintenancePage } from "../modules/pais/ui/react/PaisMaintenancePage";
 import { RegionMaintenancePage } from "../modules/region/ui/react/RegionMaintenancePage";
 import { CiudadMaintenancePage } from "../modules/ciudad/ui/react/CiudadMaintenancePage";
+import { ComunaMaintenancePage } from "../modules/comuna/ui/react/ComunaMaintenancePage";
 import { ProveedorMaintenancePage } from "../modules/proveedor/ui/react/ProveedorMaintenancePage";
 
-type Screen = "menu" | "users" | "employees" | "informes" | "suppliers" | "continentes" | "paises" | "regiones" | "ciudades";
+type Screen = "menu" | "users" | "employees" | "informes" | "suppliers" | "continentes" | "paises" | "regiones" | "ciudades" | "comunas";
 
 // Composition root del shell POS. El formulario inicial sólo entrega la
 // opción confirmada (regla 1A.2); este componente decide qué pantalla
@@ -63,6 +64,10 @@ export function App() {
     return <RegionMaintenancePage onBack={() => setScreen("menu")} />;
   }
 
+  if (screen === "comunas") {
+    return <ComunaMaintenancePage onBack={() => setScreen("menu")} />;
+  }
+
   if (screen === "ciudades") {
     return <CiudadMaintenancePage onBack={() => setScreen("menu")} />;
   }
@@ -87,6 +92,8 @@ export function App() {
           setScreen("regiones");
         } else if (option.action === "dir-ciudad") {
           setScreen("ciudades");
+        } else if (option.action === "dir-comuna") {
+          setScreen("comunas");
         } else if (option.action === "signout") {
           setSession(null);
           setMenuLocation(undefined);

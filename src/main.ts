@@ -11,6 +11,7 @@ import { ExpressContinenteRouter } from "./lib/Continente/infrastructure/Express
 import { ExpressPaisRouter } from "./lib/Pais/infrastructure/ExpressPaisRouter";
 import { ExpressRegionRouter } from "./lib/Region/infrastructure/ExpressRegionRouter";
 import { ExpressCiudadRouter } from "./lib/Ciudad/infrastructure/ExpressCiudadRouter";
+import { ExpressComunaRouter } from "./lib/Comuna/infrastructure/ExpressComunaRouter";
 
 const app = express();
 
@@ -27,6 +28,7 @@ app.use(ExpressContinenteRouter);
 app.use(ExpressPaisRouter);
 app.use(ExpressRegionRouter);
 app.use(ExpressCiudadRouter);
+app.use(ExpressComunaRouter);
 
 app.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
   if (err instanceof Error) {

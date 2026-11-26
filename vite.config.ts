@@ -38,6 +38,7 @@ export default defineConfig({
       "/paises": "http://localhost:3000",
       "/regiones": "http://localhost:3000",
       "/ciudades": "http://localhost:3000",
+      "/comunas": "http://localhost:3000",
     },
   },
 });

@@ -89,7 +89,7 @@ const MAIN_MENU_OPTIONS: MainMenuOption[] = [
             action: "dir-comuna",
             label: "Mantenedor de Comunas",
             boundedContext: "Direcciones",
-            entryUseCase: "Pendiente",
+            entryUseCase: "ComunaSearch (solo consulta)",
           },
           {
             code: "06",
