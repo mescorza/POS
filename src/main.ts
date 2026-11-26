@@ -5,6 +5,13 @@ import { ExpressEmployeRouter } from "./lib/Employe/infrastructure/ExpressEmploy
 import { ExpressLookupRouter } from "./lib/Shared/infrastructure/ExpressLookupRouter";
 import { ExpressInformesRouter } from "./lib/Shared/infrastructure/ExpressInformesRouter";
 import { ExpressAuthRouter } from "./lib/auth/infrastructure/ExpressAuthRouter";
+import { ExpressProveedorRouter } from "./lib/Proveedor/infrastructure/ExpressProveedorRouter";
+import { ExpressMaestroRouter } from "./lib/Shared/infrastructure/ExpressMaestroRouter";
+import { ExpressContinenteRouter } from "./lib/Continente/infrastructure/ExpressContinenteRouter";
+import { ExpressPaisRouter } from "./lib/Pais/infrastructure/ExpressPaisRouter";
+import { ExpressRegionRouter } from "./lib/Region/infrastructure/ExpressRegionRouter";
+import { ExpressCiudadRouter } from "./lib/Ciudad/infrastructure/ExpressCiudadRouter";
+import { ExpressComunaRouter } from "./lib/Comuna/infrastructure/ExpressComunaRouter";
 
 const app = express();
 
@@ -15,6 +22,13 @@ app.use(ExpressEmployeRouter);
 app.use(ExpressLookupRouter);
 app.use(ExpressInformesRouter);
 app.use(ExpressAuthRouter);
+app.use(ExpressProveedorRouter);
+app.use(ExpressMaestroRouter);
+app.use(ExpressContinenteRouter);
+app.use(ExpressPaisRouter);
+app.use(ExpressRegionRouter);
+app.use(ExpressCiudadRouter);
+app.use(ExpressComunaRouter);
 
 app.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
   if (err instanceof Error) {

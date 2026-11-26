@@ -31,7 +31,7 @@ const MAIN_MENU_OPTIONS: MainMenuOption[] = [
     action: "admin",
     label: "Administración del Sistema",
     boundedContext: "Administración",
-    entryUseCase: "Submenú: usuarios y empleados",
+    entryUseCase: "Submenú: usuarios, empleados y direcciones",
     children: [
       {
         code: "01",
@@ -49,6 +49,64 @@ const MAIN_MENU_OPTIONS: MainMenuOption[] = [
         entryUseCase:
           "EmployeGetAll / EmployeGetOneById / EmployeCreate / EmployeEdit / EmployeDelete",
       },
+      {
+        code: "03",
+        action: "addresses",
+        label: "Administra Direcciones",
+        boundedContext: "Direcciones",
+        entryUseCase: "Submenú: continente, país, región, ciudad, comuna, provincia y localidad",
+        children: [
+          {
+            code: "01",
+            action: "dir-continente",
+            label: "Mantenedor de Continentes",
+            boundedContext: "Direcciones",
+            entryUseCase: "ContinenteSearch (solo consulta)",
+          },
+          {
+            code: "02",
+            action: "dir-pais",
+            label: "Mantenedor de Países",
+            boundedContext: "Direcciones",
+            entryUseCase: "PaisSearch (solo consulta)",
+          },
+          {
+            code: "03",
+            action: "dir-region",
+            label: "Mantenedor de Regiones",
+            boundedContext: "Direcciones",
+            entryUseCase: "RegionSearch (solo consulta)",
+          },
+          {
+            code: "04",
+            action: "dir-ciudad",
+            label: "Mantenedor de Ciudades",
+            boundedContext: "Direcciones",
+            entryUseCase: "CiudadSearch (solo consulta)",
+          },
+          {
+            code: "05",
+            action: "dir-comuna",
+            label: "Mantenedor de Comunas",
+            boundedContext: "Direcciones",
+            entryUseCase: "ComunaSearch (solo consulta)",
+          },
+          {
+            code: "06",
+            action: "dir-provincia",
+            label: "Mantenedor de Provincias",
+            boundedContext: "Direcciones",
+            entryUseCase: "Pendiente",
+          },
+          {
+            code: "07",
+            action: "dir-localidad",
+            label: "Mantenedor de Localidades",
+            boundedContext: "Direcciones",
+            entryUseCase: "Pendiente",
+          },
+        ],
+      },
     ],
   },
   {
@@ -62,8 +120,8 @@ const MAIN_MENU_OPTIONS: MainMenuOption[] = [
         code: "01",
         action: "suppliers",
         label: "Mantenedor de Proveedores",
-        boundedContext: "Supplier",
-        entryUseCase: "Pendiente",
+        boundedContext: "Proveedor",
+        entryUseCase: "ProveedorSearch / ProveedorGetOneById (solo consulta)",
       },
       {
         code: "02",
@@ -117,19 +175,45 @@ export interface MainMenuPageProps {
    * de sesión (regla 1A.2); no navega directamente. Quien lo monte decide
    * qué hacer con la opción confirmada (por ahora puede quedar sin usar).
    */
-  onOptionConfirmed?: (option: MainMenuOption) => void;
+  onOptionConfirmed?: (option: MainMenuOption, location: MainMenuLocation) => void;
   /** Username de la sesión activa (AuthSignIn); se muestra en el encabezado. */
   user?: string;
+  /**
+   * Ubicación a restaurar al montar el menú (códigos de los submenús abiertos y
+   * de la opción seleccionada), para volver al mismo lugar desde una pantalla.
+   */
+  initialLocation?: MainMenuLocation;
 }
 
-export function MainMenuPage({ onOptionConfirmed, user }: MainMenuPageProps) {
-  const [selectedIndex, setSelectedIndex] = React.useState(0);
+/** Dónde estaba el usuario en el menú: submenús abiertos (por código) y opción elegida. */
+export interface MainMenuLocation {
+  path: string[];
+  selected: string;
+}
+
+function resolveLocation(loc?: MainMenuLocation): { path: MainMenuOption[]; index: number } {
+  const path: MainMenuOption[] = [];
+  let options = MAIN_MENU_OPTIONS;
+  for (const code of loc?.path ?? []) {
+    const o = options.find((x) => x.code === code);
+    if (!o?.children) break;
+    path.push(o);
+    options = o.children;
+  }
+  return { path, index: Math.max(options.findIndex((x) => x.code === loc?.selected), 0) };
+}
+
+export function MainMenuPage({ onOptionConfirmed, user, initialLocation }: MainMenuPageProps) {
+  const initial = React.useMemo(() => resolveLocation(initialLocation), []); // eslint-disable-line react-hooks/exhaustive-deps
+  const [selectedIndex, setSelectedIndex] = React.useState(initial.index);
   const [typedCode, setTypedCode] = React.useState("");
   const [statusMessage, setStatusMessage] = React.useState<string | null>(
     null
   );
 
-  const [submenu, setSubmenu] = React.useState<MainMenuOption | null>(null);
+  // Pila de submenús abiertos (admite submenús dentro de submenús).
+  const [path, setPath] = React.useState<MainMenuOption[]>(initial.path);
+  const submenu = path.length ? path[path.length - 1] : null;
   const options = submenu?.children ?? MAIN_MENU_OPTIONS;
   const selectedOption = options[selectedIndex];
   const bodyRef = usePosFocus<HTMLDivElement>("menu");
@@ -143,7 +227,7 @@ export function MainMenuPage({ onOptionConfirmed, user }: MainMenuPageProps) {
 
   const confirmSelection = () => {
     if (selectedOption.children) {
-      setSubmenu(selectedOption);
+      setPath([...path, selectedOption]);
       setSelectedIndex(0);
       setTypedCode("");
       setStatusMessage(null);
@@ -152,7 +236,7 @@ export function MainMenuPage({ onOptionConfirmed, user }: MainMenuPageProps) {
     setStatusMessage(
       `Abriendo opción ${selectedOption.code} - ${selectedOption.label}  (destino aún no implementado)`
     );
-    onOptionConfirmed?.(selectedOption);
+    onOptionConfirmed?.(selectedOption, { path: path.map((p) => p.code), selected: selectedOption.code });
   };
 
   const handleKeyDown = (event: React.KeyboardEvent) => {
@@ -183,8 +267,10 @@ export function MainMenuPage({ onOptionConfirmed, user }: MainMenuPageProps) {
       setTypedCode("");
       setStatusMessage(null);
       if (submenu) {
-        setSelectedIndex(MAIN_MENU_OPTIONS.indexOf(submenu));
-        setSubmenu(null);
+        // Vuelve un nivel, dejando seleccionada la opción de la que se salió.
+        const parentOptions = path.length > 1 ? path[path.length - 2].children! : MAIN_MENU_OPTIONS;
+        setSelectedIndex(parentOptions.indexOf(submenu));
+        setPath(path.slice(0, -1));
       }
       return;
     }

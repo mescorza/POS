@@ -1,12 +1,19 @@
 import * as React from "react";
-import { MainMenuPage } from "../shared/ui/shell/MainMenuPage";
+import { MainMenuLocation, MainMenuPage } from "../shared/ui/shell/MainMenuPage";
 import { UserMaintenancePage } from "../modules/user/ui/react/UserMaintenancePage";
 import { EmployeListPage } from "../modules/employe/ui/react/EmployeListPage";
 import { LoginPage } from "../modules/auth/ui/react/LoginPage";
 import { AuthSession } from "../modules/auth/infrastructure/AuthHttpGateway";
 import { InformesPage } from "../modules/informes/ui/react/InformesPage";
 
-type Screen = "menu" | "users" | "employees" | "informes";
+import { ContinenteMaintenancePage } from "../modules/continente/ui/react/ContinenteMaintenancePage";
+import { PaisMaintenancePage } from "../modules/pais/ui/react/PaisMaintenancePage";
+import { RegionMaintenancePage } from "../modules/region/ui/react/RegionMaintenancePage";
+import { CiudadMaintenancePage } from "../modules/ciudad/ui/react/CiudadMaintenancePage";
+import { ComunaMaintenancePage } from "../modules/comuna/ui/react/ComunaMaintenancePage";
+import { ProveedorMaintenancePage } from "../modules/proveedor/ui/react/ProveedorMaintenancePage";
+
+type Screen = "menu" | "users" | "employees" | "informes" | "suppliers" | "continentes" | "paises" | "regiones" | "ciudades" | "comunas";
 
 // Composition root del shell POS. El formulario inicial sólo entrega la
 // opción confirmada (regla 1A.2); este componente decide qué pantalla
@@ -22,6 +29,8 @@ type Screen = "menu" | "users" | "employees" | "informes";
 export function App() {
   const [session, setSession] = React.useState<AuthSession | null>(null);
   const [screen, setScreen] = React.useState<Screen>("menu");
+  // Dónde estaba el menú al abrir una pantalla: Esc vuelve ahí y no a la raíz.
+  const [menuLocation, setMenuLocation] = React.useState<MainMenuLocation | undefined>(undefined);
 
   if (!session) {
     return <LoginPage onSuccess={setSession} />;
@@ -39,16 +48,55 @@ export function App() {
     return <InformesPage onBack={() => setScreen("menu")} />;
   }
 
+  if (screen === "suppliers") {
+    return <ProveedorMaintenancePage onBack={() => setScreen("menu")} userId={session.id} />;
+  }
+
+  if (screen === "continentes") {
+    return <ContinenteMaintenancePage onBack={() => setScreen("menu")} />;
+  }
+
+  if (screen === "paises") {
+    return <PaisMaintenancePage onBack={() => setScreen("menu")} />;
+  }
+
+  if (screen === "regiones") {
+    return <RegionMaintenancePage onBack={() => setScreen("menu")} />;
+  }
+
+  if (screen === "comunas") {
+    return <ComunaMaintenancePage onBack={() => setScreen("menu")} />;
+  }
+
+  if (screen === "ciudades") {
+    return <CiudadMaintenancePage onBack={() => setScreen("menu")} />;
+  }
+
   return (
     <MainMenuPage
       user={session.username}
-      onOptionConfirmed={(option) => {
+      initialLocation={menuLocation}
+      onOptionConfirmed={(option, location) => {
+        setMenuLocation(location);
         if (option.action === "users") {
           setScreen("users");
         } else if (option.action === "employees") {
           setScreen("employees");
+        } else if (option.action === "suppliers") {
+          setScreen("suppliers");
+        } else if (option.action === "dir-continente") {
+          setScreen("continentes");
+        } else if (option.action === "dir-pais") {
+          setScreen("paises");
+        } else if (option.action === "dir-region") {
+          setScreen("regiones");
+        } else if (option.action === "dir-ciudad") {
+          setScreen("ciudades");
+        } else if (option.action === "dir-comuna") {
+          setScreen("comunas");
         } else if (option.action === "signout") {
           setSession(null);
+          setMenuLocation(undefined);
         } else if (option.action === "informes") {
           setScreen("informes");
         }
